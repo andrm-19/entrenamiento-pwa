@@ -1,0 +1,19 @@
+{
+  "name": "Entreno V",
+  "short_name": "Entreno V",
+  "description": "Plan de entrenamiento semanal: rutinas, mapas musculares y seguimiento de progreso.",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0F0F14",
+  "theme_color": "#0F0F14",
+  "start_url": "./",
+  "scope": "./",
+  "icons": [
+    {
+      "src": "assets/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

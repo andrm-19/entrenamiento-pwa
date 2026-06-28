@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0">
+<title>Entreno V</title>
+
+<!-- PWA / iOS -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Entreno V">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0F0F14">
+
+<!-- Iconos y manifest (archivos reales) -->
+<link rel="apple-touch-icon" href="assets/icon.svg">
+<link rel="icon" type="image/svg+xml" href="assets/icon.svg">
+<link rel="manifest" href="manifest.json">
+
+<!-- Estilos externos -->
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <header>
+    <div class="kicker">Smart Fit Kennedy · Plan v3</div>
+    <h1>Entreno V</h1>
+    <div class="goal">Físico estético en V · prioridad espalda, hombro lateral y brazos</div>
+    <div class="week" id="weeklabel"></div>
+
+    <label class="study-switch">
+      <input type="checkbox" id="studyToggle" onchange="toggleStudy(this.checked)">
+      <span class="track"><span class="thumb"></span></span>
+      <span class="study-label">Modo estudio · rutina exprés</span>
+    </label>
+  </header>
+
+  <div class="banner" id="banner">
+    <div>🔰 <b>Bloque 1 (semanas 1–2):</b> cargas conservadoras y técnica, 2–3 reps en reserva. Toca <b>📋 Guía</b> para ver el plan por bloques.</div>
+    <button onclick="dismissBanner()" aria-label="Cerrar aviso">×</button>
+  </div>
+
+  <div class="action-row">
+    <button class="pbtn" onclick="openPanel('progress')">📈 Mi progreso</button>
+    <button class="pbtn" onclick="openPanel('guide')">📋 Guía y bloques</button>
+    <button class="pbtn" onclick="openPanel('nutri')">🍽️ Alimentación y sueño</button>
+    <button class="pbtn" onclick="exportarCalendario()">📅 Calendario</button>
+  </div>
+
+  <section class="panel" id="progress" hidden style="--p:var(--pull)"></section>
+
+  <section class="panel" id="guide" hidden style="--p:var(--push)">
+    <h3>Entrena por bloques (no igual para siempre)</h3>
+    <div class="blk"><b>Semanas 1–2 · Readaptación.</b> Cargas suaves, 2–3 RIR, volumen bajo (espalda ~12–14 series). Reconecta y cuida tendones.</div>
+    <div class="blk"><b>Semanas 3–7 · Progresión.</b> Sube carga/reps cada semana, 1–2 RIR. Espalda → ~16–18 series; hombro lateral → ~13–15.</div>
+    <div class="blk"><b>Semana 8 · Descarga.</b> ~50 % del volumen y cargas ligeras. Vuelves más fuerte.</div>
+    <div class="blk"><b>Semanas 9–14 · Nuevo bloque.</b> Cambia algunas variantes y ponte nuevas metas.</div>
+    <h3>Volumen objetivo (series / semana)</h3>
+    <table>
+      <tr><td>Espalda</td><td>14 → 18</td></tr>
+      <tr><td>Hombro lateral</td><td>12 → 15</td></tr>
+      <tr><td>Bíceps</td><td>12 – 14</td></tr>
+      <tr><td>Pecho</td><td>10 – 12</td></tr>
+      <tr><td>Tríceps</td><td>8 – 10</td></tr>
+      <tr><td>Cuádriceps</td><td>12 – 14</td></tr>
+      <tr><td>Femoral / glúteo</td><td>9 – 11</td></tr>
+      <tr><td>Gemelos</td><td>8 – 10</td></tr>
+    </table>
+    <p><small>Empieza por el número bajo y sube según te recuperes. Más volumen no siempre es mejor.</small></p>
+    <h3>Metas de fuerza</h3>
+    <p>Registra tus ejercicios ancla — <b>jalón al pecho, press inclinado, prensa</b> — y apunta a <b>batir el peso a ~10 reps</b> cada pocas semanas. Más fuerza en estos rangos = más músculo.</p>
+    <p><small>No persigas el 1RM: progresa dentro de 8–15 reps, es más seguro y mejor estímulo.</small></p>
+    <h3>Progresión: doble progresión</h3>
+    <p>Sube reps dentro del rango manteniendo técnica; cuando llegues al número alto en todas las series, sube el peso ~2,5–5 % y vuelve al número bajo.</p>
+    <button class="panel-close" onclick="closePanels()">Cerrar</button>
+  </section>
+
+  <section class="panel" id="nutri" hidden style="--p:var(--legs)">
+    <h3>Proteína</h3>
+    <p><b>~1,6–2,2 g por kg de peso al día</b>, repartida en el día. Es el factor nº1 para construir y mantener músculo.</p>
+    <h3>Calorías y tu caso</h3>
+    <p>Como intermedio que regresa, puedes hacer <b>recomposición</b> comiendo alrededor de tu mantenimiento con proteína alta. Para marcar el abdomen más rápido, un <b>déficit leve</b>. La definición sale de bajar grasa, no de hacer más abdominales.</p>
+    <h3>Base de la dieta</h3>
+    <ul>
+      <li><b>Proteínas magras:</b> huevo, pollo, carne magra, pescado, lácteos, legumbres.</li>
+      <li><b>Carbohidratos</b> sobre todo de arroz, avena, papa, fruta, tubérculos.</li>
+      <li><b>Grasas saludables</b> y muchas verduras.</li>
+    </ul>
+    <h3>Sueño</h3>
+    <p><b>7–9 h.</b> El músculo crece descansando; dormir poco frena las ganancias y dispara el hambre.</p>
+    <h3>Hidratación y cardio</h3>
+    <p>Agua a lo largo del día. Cardio opcional: <b>2–3 caminatas en pendiente o trote suave</b> por semana; no interfiere si es moderado.</p>
+    <div class="note-soft">Sin tu peso esto va en rangos. Pésate para fijar números. Y si la comida o el peso te generan ansiedad o se vuelven rígidos, habla con un profesional (médico/nutricionista): el objetivo es un cuerpo sano y un proceso disfrutable.</div>
+    <button class="panel-close" onclick="closePanels()">Cerrar</button>
+  </section>
+
+  <nav class="days" id="days" aria-label="Seleccionar día"></nav>
+  <main id="view"></main>
+
+  <footer>
+    <p><b>Técnica primero, video de apoyo:</b> los pasos numerados son tu guía; el botón <b>Ver video</b> abre una demostración en YouTube si quieres verla en movimiento (necesita internet; el resto funciona sin conexión).</p>
+    <p><b>Trabajo unilateral:</b> en los ejercicios "por lado", empieza por el lado débil y haz en el fuerte solo las reps que logró el débil.</p>
+    <p>Si sientes dolor articular agudo (no la molestia normal del esfuerzo), para ese ejercicio y consulta.</p>
+  </footer>
+
+  <!-- Cronómetro de descanso (flotante, oculto hasta que tocas "Descanso") -->
+  <div id="restTimer" class="rest-timer" hidden>
+    <span class="rest-ico">⏱</span>
+    <span id="restTime" class="rest-time">0:00</span>
+    <button class="rest-add" type="button" onclick="addRest(15)">+15s</button>
+    <button class="rest-skip" type="button" onclick="stopRest()">Saltar</button>
+  </div>
+
+  <!-- Capa de confeti para la celebración al completar el día -->
+  <div id="confetti" class="confetti" hidden aria-hidden="true"></div>
+
+  <!-- Definiciones SVG compartidas: degradado y brillo de los músculos activos -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <linearGradient id="mg" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0"  stop-color="currentColor" stop-opacity="1"/>
+        <stop offset="1"  stop-color="currentColor" stop-opacity="0.55"/>
+      </linearGradient>
+      <filter id="mglow" x="-40%" y="-40%" width="180%" height="180%">
+        <feGaussianBlur stdDeviation="1.4" result="b"/>
+        <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+    </defs>
+  </svg>
+
+  <!-- Lógica externa. 'defer' garantiza que el DOM esté listo antes de ejecutar. -->
+  <script src="js/app.js" defer></script>
+</body>
+</html>

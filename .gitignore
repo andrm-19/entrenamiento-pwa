@@ -1,0 +1,13 @@
+# Configuración local de herramientas (no va al repo)
+.claude/
+
+# Respaldo del monolito original (solo es una copia de seguridad local)
+_backup_monolito.html
+
+# Archivos generados por la app (exportaciones)
+*.ics
+
+# Basura del sistema operativo
+Thumbs.db
+desktop.ini
+.DS_Store

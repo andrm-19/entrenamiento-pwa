@@ -4,19 +4,21 @@
    ============================================================ */
 
 :root{
-  --bg:#0F0F14; --surface:#191920; --surface-2:#22222B; --border:#2E2E38;
-  --text:#F4F4F2; --muted:#8E8E9B; --ghost:rgba(255,255,255,.05); --dim:#2B2B33;
+  /* Negro AMOLED puro: apaga los píxeles del Super AMOLED (ahorra batería) */
+  --bg:#000000; --surface:#0D0D11; --surface-2:#16161C; --border:#26262F;
+  --text:#F4F4F2; --muted:#8E8E9B; --ghost:rgba(255,255,255,.05); --dim:#26262F;
   --pull:#2DA8F2; --push:#FF7A33; --legs:#A6E024; --upper:#B97BF6; --rest:#6B7280;
-  --accent:var(--pull); --pad:16px;
+  --accent:var(--pull); --pad:16px; --dock-h:142px;
 }
 *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
 html,body{margin:0; padding:0;}
 body{
   background:var(--bg); color:var(--text);
-  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,Roboto,Helvetica,Arial,sans-serif;
+  font-family:system-ui,Roboto,"Segoe UI",Helvetica,Arial,sans-serif;
   -webkit-font-smoothing:antialiased; line-height:1.45;
-  padding-bottom:46px; max-width:560px; margin:0 auto;
+  max-width:560px; margin:0 auto;
   padding-top:env(safe-area-inset-top);
+  padding-bottom:calc(var(--dock-h) + env(safe-area-inset-bottom));  /* sitio para el dock */
 }
 header{padding:20px var(--pad) 4px;}
 .kicker{font-size:11px; letter-spacing:.22em; text-transform:uppercase; color:var(--muted); font-weight:700;}
@@ -39,7 +41,9 @@ h1{margin:4px 0 2px; font-size:24px; font-weight:800; letter-spacing:-.01em;}
   display:flex; align-items:center; justify-content:center; gap:6px; text-align:center; transition:transform .12s;}
 .pbtn:active{transform:scale(.97);}
 /* panels */
-.panel{margin:10px var(--pad) 0; background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:15px;}
+.panel{margin:10px var(--pad) 0; background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:15px;
+  animation:panelIn .22s cubic-bezier(.2,.8,.2,1) both;}   /* 120Hz: solo opacity+transform */
+@keyframes panelIn{from{opacity:0; transform:translateY(10px);} to{opacity:1; transform:none;}}
 .panel h3{margin:18px 0 6px; font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--p); font-weight:800;}
 .panel h3:first-child{margin-top:0;}
 .panel p{margin:0 0 8px; font-size:12.5px; color:var(--text);}
@@ -52,10 +56,12 @@ h1{margin:4px 0 2px; font-size:24px; font-weight:800; letter-spacing:-.01em;}
 .panel ul{margin:0; padding-left:18px;} .panel li{font-size:12.5px; margin-bottom:6px;}
 .panel li b{color:var(--text);}
 .note-soft{margin-top:14px; font-size:11.5px; color:var(--muted); background:var(--surface-2); border-radius:10px; padding:10px 12px; border:1px solid var(--border);}
-.panel-close{margin-top:14px; width:100%; background:var(--surface-2); border:1px solid var(--border); color:var(--muted); font-weight:600; font-size:12px; padding:9px; border-radius:9px; cursor:pointer;}
-/* day selector */
-nav.days{position:sticky; top:0; z-index:20; background:var(--bg);
-  display:flex; gap:6px; padding:12px var(--pad); overflow-x:auto; border-bottom:1px solid var(--border); scrollbar-width:none;}
+.panel-close{position:sticky; bottom:calc(var(--dock-h) + 8px); margin-top:14px; width:100%;
+  background:var(--surface-2); border:1px solid var(--border); color:var(--text); font-weight:700; font-size:13px;
+  padding:13px; border-radius:11px; cursor:pointer; transition:transform .1s;}
+.panel-close:active{transform:scale(.98);}
+/* day selector (vive dentro del dock inferior) */
+nav.days{display:flex; gap:6px; overflow-x:auto; scrollbar-width:none; padding:0 2px 8px;}
 nav.days::-webkit-scrollbar{display:none;}
 .day-btn{flex:1 0 auto; min-width:46px; min-height:58px; border-radius:12px;
   background:var(--surface-2); border:1px solid var(--border); color:var(--muted);
@@ -101,7 +107,8 @@ main{padding:16px var(--pad) 0;}
 .progress .row{display:flex; justify-content:space-between; align-items:center; font-size:12px; color:var(--muted); margin-bottom:6px;}
 .progress .row b{color:var(--text); font-variant-numeric:tabular-nums;}
 .bar{height:7px; background:var(--surface-2); border-radius:999px; overflow:hidden;}
-.bar i{display:block; height:100%; width:0%; background:var(--accent); border-radius:999px; transition:width .35s ease;}
+.bar i{display:block; height:100%; width:100%; background:var(--accent); border-radius:999px;
+  transform:scaleX(0); transform-origin:left; transition:transform .35s cubic-bezier(.2,.8,.2,1); will-change:transform;}
 .reset{background:none; border:1px solid var(--border); color:var(--muted); font-size:11px; font-weight:600; padding:5px 10px; border-radius:8px; cursor:pointer;}
 /* exercise */
 .list{margin-top:13px; display:flex; flex-direction:column; gap:10px;}
@@ -144,8 +151,11 @@ footer p{margin:0 0 8px;} footer b{color:var(--text);}
    Añadidos: Modo Estudio · Registro de cargas · Volumen
    ============================================================ */
 
-/* Toggle "Modo estudio" en el header */
-.study-switch{display:inline-flex; align-items:center; gap:9px; margin-top:12px; cursor:pointer; user-select:none;}
+/* Toggle "Modo estudio" (vive en el dock inferior) */
+.study-switch{display:inline-flex; align-items:center; gap:9px; cursor:pointer; user-select:none;}
+.dock-study{flex:1; min-width:56px; flex-direction:column; gap:4px; justify-content:center;
+  background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:8px 4px;}
+.dock-study .study-label{font-size:10px;}
 .study-switch input{position:absolute; opacity:0; width:0; height:0;}
 .study-switch .track{width:40px; height:23px; border-radius:999px; background:var(--surface-2); border:1px solid var(--border); position:relative; transition:background .2s, border-color .2s; flex-shrink:0;}
 .study-switch .thumb{position:absolute; top:2px; left:2px; width:17px; height:17px; border-radius:50%; background:var(--muted); transition:transform .2s, background .2s;}
@@ -202,10 +212,11 @@ footer p{margin:0 0 8px;} footer b{color:var(--text);}
 .stat-rest:hover{border-color:var(--accent);}
 
 /* Cronómetro de descanso flotante */
-.rest-timer{position:fixed; left:50%; bottom:18px; transform:translateX(-50%); z-index:50;
+.rest-timer{position:fixed; left:50%; bottom:calc(var(--dock-h) + env(safe-area-inset-bottom) + 12px);
+  transform:translateX(-50%); z-index:50;
   display:flex; align-items:center; gap:10px; padding:10px 14px; border-radius:14px;
   background:var(--surface); border:1px solid var(--accent);
-  box-shadow:0 8px 26px rgba(0,0,0,.5); max-width:92vw;}
+  box-shadow:0 8px 26px rgba(0,0,0,.6); max-width:92vw;}
 .rest-timer .rest-ico{font-size:17px;}
 .rest-label{font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--muted);}
 .rest-time{font-size:22px; font-weight:800; font-variant-numeric:tabular-nums; min-width:62px; text-align:center;}
@@ -216,13 +227,50 @@ footer p{margin:0 0 8px;} footer b{color:var(--text);}
   font-weight:700; font-size:12px; padding:7px 11px; border-radius:9px; cursor:pointer;}
 .rest-skip{color:var(--muted);}
 
-/* Gráficas (SVG puro) del panel de progreso */
-.chart{width:100%; height:auto; display:block; margin:4px 0 2px; overflow:visible;}
+/* === Panel de progreso: tarjetas resumen + gráficas === */
+.stat-cards{display:flex; gap:8px; margin:2px 0 10px;}
+.scard{flex:1; min-width:0; background:var(--surface-2); border:1px solid var(--border); border-radius:13px;
+  padding:11px 6px; text-align:center;}
+.scard b{display:block; font-size:19px; font-weight:800; font-variant-numeric:tabular-nums; line-height:1.1;}
+.scard span{font-size:8.5px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:var(--muted);}
+.scard.k1 b{color:var(--pull);} .scard.k2 b{color:var(--legs);} .scard.k3 b{color:var(--upper);}
+
+/* Barras verticales (volumen por día) — crecen con transform (120Hz) */
+.chart{width:100%; height:auto; display:block; margin:2px 0 8px; overflow:visible;}
 .caxis{stroke:var(--border); stroke-width:1;}
-.cbar{fill:var(--surface-2); stroke:var(--border); stroke-width:1;}
-.cbar.hot{fill:color-mix(in srgb, var(--pull) 60%, var(--surface)); stroke:var(--pull);}
+.cbar{color:var(--pull); fill:url(#barGrad); transform-box:fill-box; transform-origin:bottom;
+  animation:barGrow .5s cubic-bezier(.2,.8,.2,1) both;}
+.cbar.hot{color:var(--legs);}
+@keyframes barGrow{from{transform:scaleY(0);} to{transform:scaleY(1);}}
 .cval{fill:var(--text); font-size:9px; font-weight:700; font-variant-numeric:tabular-nums;}
-.clbl{fill:var(--muted); font-size:8.5px; font-weight:700; letter-spacing:.04em;}
+.clbl{fill:var(--muted); font-size:9px; font-weight:700; letter-spacing:.04em;}
+
+/* Barras horizontales (volumen por músculo / récords) */
+.hbar-row{display:flex; align-items:center; gap:8px; margin:6px 0; font-size:11.5px;}
+.hbar-lbl{width:84px; flex-shrink:0; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+.hbar-track{flex:1; height:15px; background:var(--surface-2); border-radius:999px; overflow:hidden;}
+.hbar-fill{height:100%; border-radius:999px; transform:scaleX(0); transform-origin:left;
+  background:linear-gradient(90deg, color-mix(in srgb,var(--accent) 92%,transparent), color-mix(in srgb,var(--accent) 40%,transparent));
+  animation:hbarGrow .55s cubic-bezier(.2,.8,.2,1) forwards;}
+@keyframes hbarGrow{to{transform:scaleX(1);}}
+.hbar-val{width:60px; flex-shrink:0; text-align:right; font-weight:700; font-variant-numeric:tabular-nums; color:var(--text);}
+
+/* Área de tendencia semanal */
+.area-fill{fill:color-mix(in srgb,var(--pull) 22%,transparent);}
+.area-line{fill:none; stroke:var(--pull); stroke-width:2; stroke-linejoin:round; stroke-linecap:round;}
+.area-dot{fill:var(--pull);}
+
+/* === DOCK inferior: navegación y acciones al alcance del pulgar === */
+.dock{position:fixed; left:0; right:0; bottom:0; z-index:40; max-width:560px; margin:0 auto;
+  background:rgba(0,0,0,.92); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
+  border-top:1px solid var(--border);
+  padding:9px var(--pad) calc(9px + env(safe-area-inset-bottom));}
+.dock-actions{display:flex; align-items:stretch; gap:6px; margin-top:7px;}
+.dbtn{flex:1; min-width:0; background:var(--surface); border:1px solid var(--border); color:var(--text);
+  font-family:inherit; font-weight:700; font-size:10px; padding:8px 2px; border-radius:12px; cursor:pointer;
+  display:flex; flex-direction:column; align-items:center; gap:3px; transition:transform .1s;}
+.dbtn:active{transform:scale(.93);}
+.dbtn .dico{font-size:18px; line-height:1;}
 
 /* Confeti de celebración al completar el día */
 .confetti{position:fixed; inset:0; pointer-events:none; z-index:60; overflow:hidden;}

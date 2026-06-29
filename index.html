@@ -2,23 +2,20 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Entreno V</title>
 
-<!-- PWA / iOS -->
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Entreno V">
+<!-- PWA Android / Chrome (sin Apple/iOS) -->
+<meta name="theme-color" content="#000000">
+<meta name="color-scheme" content="dark">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="theme-color" content="#0F0F14">
+<meta name="application-name" content="Entreno V">
 
-<!-- Iconos y manifest (archivos reales) -->
-<link rel="apple-touch-icon" href="assets/icon.svg">
 <link rel="icon" type="image/svg+xml" href="assets/icon.svg">
 <link rel="manifest" href="manifest.json">
 
 <!-- Estilos externos (?v= fuerza recarga al cambiar de versión) -->
-<link rel="stylesheet" href="css/styles.css?v=5">
+<link rel="stylesheet" href="css/styles.css?v=6">
 </head>
 <body>
   <header>
@@ -26,24 +23,11 @@
     <h1>Entreno V</h1>
     <div class="goal">Físico estético en V · prioridad espalda, hombro lateral y brazos</div>
     <div class="week" id="weeklabel"></div>
-
-    <label class="study-switch">
-      <input type="checkbox" id="studyToggle" onchange="toggleStudy(this.checked)">
-      <span class="track"><span class="thumb"></span></span>
-      <span class="study-label">Modo estudio · rutina exprés</span>
-    </label>
   </header>
 
   <div class="banner" id="banner">
-    <div>🔰 <b>Bloque 1 (semanas 1–2):</b> cargas conservadoras y técnica, 2–3 reps en reserva. Toca <b>📋 Guía</b> para ver el plan por bloques.</div>
+    <div>🔰 <b>Bloque 1 (semanas 1–2):</b> cargas conservadoras y técnica, 2–3 reps en reserva. Toca <b>📋 Guía</b> (abajo) para ver el plan por bloques.</div>
     <button onclick="dismissBanner()" aria-label="Cerrar aviso">×</button>
-  </div>
-
-  <div class="action-row">
-    <button class="pbtn" onclick="openPanel('progress')">📈 Mi progreso</button>
-    <button class="pbtn" onclick="openPanel('guide')">📋 Guía y bloques</button>
-    <button class="pbtn" onclick="openPanel('nutri')">🍽️ Alimentación y sueño</button>
-    <button class="pbtn" onclick="openPanel('calendar')">📅 Recordatorios</button>
   </div>
 
   <section class="panel" id="progress" hidden style="--p:var(--pull)"></section>
@@ -72,7 +56,7 @@
     <p><small>No persigas el 1RM: progresa dentro de 8–15 reps, es más seguro y mejor estímulo.</small></p>
     <h3>Progresión: doble progresión</h3>
     <p>Sube reps dentro del rango manteniendo técnica; cuando llegues al número alto en todas las series, sube el peso ~2,5–5 % y vuelve al número bajo.</p>
-    <button class="panel-close" onclick="closePanels()">Cerrar</button>
+    <button class="panel-close" onclick="closePanels()">Cerrar ✕</button>
   </section>
 
   <section class="panel" id="nutri" hidden style="--p:var(--legs)">
@@ -91,10 +75,9 @@
     <h3>Hidratación y cardio</h3>
     <p>Agua a lo largo del día. Cardio opcional: <b>2–3 caminatas en pendiente o trote suave</b> por semana; no interfiere si es moderado.</p>
     <div class="note-soft">Sin tu peso esto va en rangos. Pésate para fijar números. Y si la comida o el peso te generan ansiedad o se vuelven rígidos, habla con un profesional (médico/nutricionista): el objetivo es un cuerpo sano y un proceso disfrutable.</div>
-    <button class="panel-close" onclick="closePanels()">Cerrar</button>
+    <button class="panel-close" onclick="closePanels()">Cerrar ✕</button>
   </section>
 
-  <nav class="days" id="days" aria-label="Seleccionar día"></nav>
   <main id="view"></main>
 
   <footer>
@@ -103,7 +86,23 @@
     <p>Si sientes dolor articular agudo (no la molestia normal del esfuerzo), para ese ejercicio y consulta.</p>
   </footer>
 
-  <!-- Cronómetro de descanso (flotante, oculto hasta que tocas "Descanso") -->
+  <!-- DOCK INFERIOR: navegación y acciones al alcance del pulgar (una mano) -->
+  <div class="dock" id="dock">
+    <nav class="days" id="days" aria-label="Seleccionar día"></nav>
+    <div class="dock-actions">
+      <button class="dbtn" onclick="openPanel('progress')"><span class="dico">📈</span>Progreso</button>
+      <button class="dbtn" onclick="openPanel('calendar')"><span class="dico">📅</span>Recordar</button>
+      <button class="dbtn" onclick="openPanel('guide')"><span class="dico">📋</span>Guía</button>
+      <button class="dbtn" onclick="openPanel('nutri')"><span class="dico">🍽️</span>Dieta</button>
+      <label class="study-switch dock-study" title="Modo estudio · rutina exprés">
+        <input type="checkbox" id="studyToggle" onchange="toggleStudy(this.checked)">
+        <span class="track"><span class="thumb"></span></span>
+        <span class="study-label">Exprés</span>
+      </label>
+    </div>
+  </div>
+
+  <!-- Cronómetro de descanso (flotante, oculto hasta marcar un ejercicio) -->
   <div id="restTimer" class="rest-timer" hidden role="status" aria-live="polite">
     <span class="rest-ico">⏱</span>
     <span class="rest-label">Descanso</span>
@@ -122,14 +121,14 @@
         <stop offset="0"  stop-color="currentColor" stop-opacity="1"/>
         <stop offset="1"  stop-color="currentColor" stop-opacity="0.55"/>
       </linearGradient>
-      <filter id="mglow" x="-40%" y="-40%" width="180%" height="180%">
-        <feGaussianBlur stdDeviation="1.4" result="b"/>
-        <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
-      </filter>
+      <linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="currentColor" stop-opacity="0.95"/>
+        <stop offset="1" stop-color="currentColor" stop-opacity="0.35"/>
+      </linearGradient>
     </defs>
   </svg>
 
   <!-- Lógica externa. 'defer' garantiza que el DOM esté listo antes de ejecutar. -->
-  <script src="js/app.js?v=5" defer></script>
+  <script src="js/app.js?v=6" defer></script>
 </body>
 </html>

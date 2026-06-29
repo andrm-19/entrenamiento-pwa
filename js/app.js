@@ -384,6 +384,60 @@ function svgBars(data, unit){
     <line class="caxis" x1="${pad}" y1="${H-pad}" x2="${W-pad}" y2="${H-pad}"/>${bars}</svg>`;
 }
 
+/** Nombre legible de cada grupo muscular. */
+const MUSCLE_LABEL = {
+  frontdelt:'Hombro front.', sidedelt:'Hombro lat.', reardelt:'Hombro post.',
+  chest:'Pecho', biceps:'Bíceps', triceps:'Tríceps', forearms:'Antebrazo', abs:'Abdomen',
+  lats:'Dorsal', upperback:'Espalda alta', lowerback:'Lumbar',
+  quads:'Cuádriceps', hams:'Femoral', glutes:'Glúteo', calves:'Gemelo'
+};
+
+/** Volumen acumulado por grupo muscular esta semana (reparte el de cada ejercicio). */
+function muscleVolumeThisWeek(){
+  const vol = {};
+  for(const key in loads){
+    const m = key.match(/^(x?)(\d+)-(\d+)$/);
+    if(!m) continue;
+    const e = resolveExercise(+m[2], +m[3], m[1] === 'x');
+    const ld = loads[key];
+    if(!e || !ld || !ld.w || !e.m || !e.m.length) continue;
+    const v = (parseFirstInt(e.s) || 1) * (ld.reps || parseFirstInt(e.r) || 0) * ld.w;
+    const share = v / e.m.length;
+    e.m.forEach(mu => { vol[mu] = (vol[mu] || 0) + share; });
+  }
+  return vol;
+}
+
+/** Barras horizontales (HTML) animadas con transform. rows: [{label, value, valText}]. */
+function hBars(rows, accentVar){
+  if(!rows.length) return '';
+  const max = Math.max(1, ...rows.map(r => r.value));
+  return rows.map(r => {
+    const pct = Math.max(3, Math.round(r.value / max * 100));
+    return `<div class="hbar-row">
+      <span class="hbar-lbl">${r.label}</span>
+      <span class="hbar-track"><span class="hbar-fill" style="width:${pct}%;--accent:var(${accentVar || '--pull'})"></span></span>
+      <span class="hbar-val">${r.valText}</span>
+    </div>`;
+  }).join('');
+}
+
+/** Gráfica de área para la tendencia semanal. points: [{label, value}]. */
+function svgArea(points){
+  const W = 300, H = 120, pad = 24, top = 14;
+  const max = Math.max(1, ...points.map(p => p.value));
+  const n = points.length;
+  const xAt = i => pad + (n === 1 ? (W - 2*pad)/2 : i * (W - 2*pad) / (n - 1));
+  const yAt = v => H - pad - (v / max) * (H - pad - top);
+  const pts = points.map((p, i) => `${xAt(i).toFixed(1)},${yAt(p.value).toFixed(1)}`);
+  const area = `M ${xAt(0).toFixed(1)},${H-pad} L ${pts.join(' L ')} L ${xAt(n-1).toFixed(1)},${H-pad} Z`;
+  const dots = points.map((p, i) =>
+    `<circle class="area-dot" cx="${xAt(i).toFixed(1)}" cy="${yAt(p.value).toFixed(1)}" r="3"/>
+     <text class="clbl" x="${xAt(i).toFixed(1)}" y="${H-7}" text-anchor="middle">${p.label}</text>`).join('');
+  return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Tendencia semanal">
+    <path class="area-fill" d="${area}"/><path class="area-line" d="M ${pts.join(' L ')}"/>${dots}</svg>`;
+}
+
 /* ----------------------------------------------------------------
    5. MAPAS MUSCULARES (SVG)
    ---------------------------------------------------------------- */
@@ -706,7 +760,7 @@ function updateProgress(){
   for(let i=0;i<total;i++){ if(done[exKey(i)]) n++; }
   const pc = document.getElementById('pcount'), pb = document.getElementById('pbar');
   if(pc) pc.textContent = n;
-  if(pb) pb.style.width = (total ? (n/total*100) : 0) + '%';
+  if(pb) pb.style.transform = 'scaleX(' + (total ? n/total : 0) + ')';   // 120Hz: transform, no width
 }
 
 /** Pinta "Total volumen levantado: X kg" (+ comparación con la semana previa). */
@@ -762,36 +816,50 @@ function renderProgress(){
   const host = document.getElementById('progress');
   if(!host) return;
 
-  // 1) Volumen por día de ESTA semana (siempre tiene datos).
+  // --- Resumen ---
+  const weekNow = weekVolume(loads);
+  const sessions = ORDER.filter(d => !SCHEDULE[d].rest)
+    .filter(d => SCHEDULE[d].ex.length && SCHEDULE[d].ex.every((_, i) => done[`${d}-${i}`])).length;
+  const recordCount = Object.keys(bests).length;
+
+  // --- Volumen por día (barras verticales) ---
   const dias = ORDER.filter(d => !SCHEDULE[d].rest)
     .map(d => ({ label: SCHEDULE[d].ab, value: dayVolumeAnyMode(d), hot: d === todayDow }));
-  const weekNow = dias.reduce((s, d) => s + d.value, 0);
 
-  // 2) Tendencia: semanas archivadas + semana actual.
+  // --- Volumen por músculo (barras horizontales, top 8) ---
+  const mv = muscleVolumeThisWeek();
+  const muscleRows = Object.keys(mv)
+    .map(k => ({ label: MUSCLE_LABEL[k] || k, value: mv[k], valText: fmtKg(mv[k]) }))
+    .sort((a, b) => b.value - a.value).slice(0, 8);
+
+  // --- Tendencia (semanas archivadas + ahora) ---
   const trend = Object.keys(history).sort()
     .map(k => ({ label: k.slice(5).replace('-', '/'), value: history[k].volume || 0 }));
-  trend.push({ label: 'ahora', value: weekNow, hot: true });
+  trend.push({ label: 'ahora', value: weekNow });
 
-  // 3) Récords de peso por ejercicio.
-  const recs = Object.keys(bests).map(k => {
+  // --- Récords (barras horizontales) ---
+  const recRows = Object.keys(bests).map(k => {
     const [d, bi] = k.split('-').map(Number);
     const ex = SCHEDULE[d] && SCHEDULE[d].ex && SCHEDULE[d].ex[bi];
-    return ex ? { n: ex.n, w: bests[k].w } : null;
-  }).filter(Boolean).sort((a, b) => b.w - a.w).slice(0, 8);
+    return ex ? { label: ex.n, value: bests[k].w, valText: fmtKg(bests[k].w) + ' kg' } : null;
+  }).filter(Boolean).sort((a, b) => b.value - a.value).slice(0, 8);
 
   host.innerHTML = `
-    <h3>Volumen por día · esta semana</h3>
+    <h3>Resumen de la semana</h3>
+    <div class="stat-cards">
+      <div class="scard k1"><b>${fmtKg(weekNow)}</b><span>kg volumen</span></div>
+      <div class="scard k2"><b>${sessions}</b><span>sesiones</span></div>
+      <div class="scard k3"><b>${recordCount}</b><span>récords</span></div>
+    </div>
+    <h3>Volumen por día</h3>
     ${svgBars(dias, 'volumen por día')}
-    <p><small>Total de la semana: <b>${fmtKg(weekNow)} kg</b>. La barra de hoy va resaltada.</small></p>
+    <h3>Volumen por músculo</h3>
+    ${muscleRows.length ? hBars(muscleRows, '--pull') : '<p><small>Registra pesos para ver el reparto por músculo.</small></p>'}
     <h3>Tendencia semanal</h3>
-    ${trend.length > 1
-        ? svgBars(trend, 'tendencia semanal')
-        : '<p><small>Aún no hay semanas anteriores: esta gráfica crece cada lunes. 📈</small></p>'}
+    ${trend.length > 1 ? svgArea(trend) : '<p><small>Aún no hay semanas anteriores: esta gráfica crece cada lunes. 📈</small></p>'}
     <h3>Tus récords (peso máximo)</h3>
-    ${recs.length
-        ? `<table>${recs.map(r => `<tr><td>${r.n}</td><td>${fmtKg(r.w)} kg</td></tr>`).join('')}</table>`
-        : '<p><small>Registra pesos y aquí verás tus máximos por ejercicio.</small></p>'}
-    <button class="panel-close" onclick="closePanels()">Cerrar</button>`;
+    ${recRows.length ? hBars(recRows, '--legs') : '<p><small>Registra pesos y aquí verás tus máximos por ejercicio.</small></p>'}
+    <button class="panel-close" onclick="closePanels()">Cerrar ✕</button>`;
 }
 
 function dismissBanner(){

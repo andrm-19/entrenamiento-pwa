@@ -122,7 +122,7 @@ main{padding:16px var(--pad) 0;}
 .ex.done .check{background:var(--accent); border-color:var(--accent);}
 .ex.done .check svg{opacity:1; transform:scale(1);}
 .ex-main{flex:1; min-width:0;}
-.ex-head{display:flex; justify-content:space-between; gap:10px; align-items:flex-start;}
+.ex-head{display:block;}
 .name{font-size:15px; font-weight:700; letter-spacing:-.01em;}
 .tag-opt{font-size:9.5px; font-weight:800; letter-spacing:.08em; color:var(--accent); margin-left:6px;}
 .purpose{font-size:10.5px; font-weight:700; letter-spacing:.03em; text-transform:uppercase; color:var(--accent); margin-top:3px; opacity:.9;}
@@ -291,3 +291,37 @@ footer p{margin:0 0 8px;} footer b{color:var(--text);}
 .cal-link:hover{border-color:var(--accent);}
 .cal-link b{font-weight:700;}
 .cal-go{font-size:12px; font-weight:700; color:var(--accent); white-space:nowrap;}
+
+/* === Tarjeta compacta: acordeones con icono (técnica / nota / video) === */
+.acc-wrap{display:flex; flex-direction:column; gap:6px; margin-top:11px;}
+.acc{border:1px solid var(--border); border-radius:10px; background:var(--surface-2); overflow:hidden;}
+.acc summary{list-style:none; cursor:pointer; padding:9px 11px; font-size:11.5px; font-weight:700;
+  color:var(--muted); display:flex; align-items:center; gap:7px; user-select:none; transition:color .15s;}
+.acc summary::-webkit-details-marker{display:none;}
+.acc[open] summary{color:var(--text); border-bottom:1px solid var(--border);}
+.acc-ico{font-size:14px; line-height:1;}
+.acc .note-input{width:auto; margin:10px; border:1px solid var(--border);}
+.tech-ol{margin:0; padding:11px 12px; list-style:none; counter-reset:t;}
+.tech-ol li{position:relative; padding-left:23px; margin-bottom:7px; font-size:12.5px; color:var(--text); line-height:1.4;}
+.tech-ol li:last-child{margin-bottom:0;}
+.tech-ol li::before{counter-increment:t; content:counter(t); position:absolute; left:0; top:1px; width:16px; height:16px;
+  border-radius:5px; background:color-mix(in srgb,var(--accent) 22%, transparent); color:var(--accent);
+  font-size:9.5px; font-weight:800; display:grid; place-items:center;}
+.acc-link{display:flex; align-items:center; gap:7px; padding:9px 11px; font-size:11.5px; font-weight:700;
+  text-decoration:none; color:var(--muted); border:1px solid var(--border); border-radius:10px; background:var(--surface-2);}
+.acc-link:active{transform:scale(.99);}
+
+/* Separador de bloque Extra en Modo Estudio */
+.ex-divider{margin:14px 2px 2px; font-size:10px; font-weight:800; letter-spacing:.1em; text-transform:uppercase;
+  color:var(--muted); display:flex; align-items:center; gap:8px;}
+.ex-divider::after{content:""; flex:1; height:1px; background:var(--border);}
+
+/* Tabla de datos + exportación (panel de progreso) */
+.data-scroll{max-height:230px; overflow:auto; border:1px solid var(--border); border-radius:11px; margin:2px 0 4px;}
+.data-table{width:100%; border-collapse:collapse; font-size:11.5px;}
+.data-table th{position:sticky; top:0; background:var(--surface-2); color:var(--muted); font-size:9px;
+  text-transform:uppercase; letter-spacing:.05em; padding:8px; text-align:left; z-index:1;}
+.data-table td{padding:7px 8px; border-top:1px solid var(--border); font-variant-numeric:tabular-nums; color:var(--muted);}
+.data-table td:nth-child(2){color:var(--text);}
+.data-table td:nth-child(3),.data-table td:nth-child(4){text-align:right; white-space:nowrap; color:var(--text);}
+.export-row{display:flex; gap:8px; margin:8px 0 2px;}

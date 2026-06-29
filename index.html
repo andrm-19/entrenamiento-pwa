@@ -15,23 +15,15 @@
 <link rel="manifest" href="manifest.json">
 
 <!-- Estilos externos (?v= fuerza recarga al cambiar de versión) -->
-<link rel="stylesheet" href="css/styles.css?v=6">
+<link rel="stylesheet" href="css/styles.css?v=7">
 </head>
 <body>
   <header>
-    <div class="kicker">Smart Fit Kennedy · Plan v3</div>
     <h1>Entreno V</h1>
-    <div class="goal">Físico estético en V · prioridad espalda, hombro lateral y brazos</div>
     <div class="week" id="weeklabel"></div>
   </header>
 
-  <div class="banner" id="banner">
-    <div>🔰 <b>Bloque 1 (semanas 1–2):</b> cargas conservadoras y técnica, 2–3 reps en reserva. Toca <b>📋 Guía</b> (abajo) para ver el plan por bloques.</div>
-    <button onclick="dismissBanner()" aria-label="Cerrar aviso">×</button>
-  </div>
-
   <section class="panel" id="progress" hidden style="--p:var(--pull)"></section>
-  <section class="panel" id="calendar" hidden style="--p:var(--push)"></section>
 
   <section class="panel" id="guide" hidden style="--p:var(--push)">
     <h3>Entrena por bloques (no igual para siempre)</h3>
@@ -91,7 +83,6 @@
     <nav class="days" id="days" aria-label="Seleccionar día"></nav>
     <div class="dock-actions">
       <button class="dbtn" onclick="openPanel('progress')"><span class="dico">📈</span>Progreso</button>
-      <button class="dbtn" onclick="openPanel('calendar')"><span class="dico">📅</span>Recordar</button>
       <button class="dbtn" onclick="openPanel('guide')"><span class="dico">📋</span>Guía</button>
       <button class="dbtn" onclick="openPanel('nutri')"><span class="dico">🍽️</span>Dieta</button>
       <label class="study-switch dock-study" title="Modo estudio · rutina exprés">
@@ -129,6 +120,6 @@
   </svg>
 
   <!-- Lógica externa. 'defer' garantiza que el DOM esté listo antes de ejecutar. -->
-  <script src="js/app.js?v=6" defer></script>
+  <script src="js/app.js?v=7" defer></script>
 </body>
 </html>

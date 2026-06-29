@@ -23,9 +23,11 @@ const BACK  = ['reardelt','upperback','lats','triceps','lowerback','glutes','ham
 const SCHEDULE = {
  1:{label:'Lunes',ab:'LU',type:'Tirón',sub:'Espalda · Bíceps · Deltoides posterior',key:'pull',
    muscles:['lats','upperback','reardelt','biceps','forearms','sidedelt'],
-   express:[ {base:0,s:'3',r:'5–8',p:'Dorsal · pesado'},
-             {base:1,s:'3',r:'6–8',p:'Espalda · pesado'},
-             {base:6,s:'3',r:'12–20',p:'Hombro · prioridad'} ],
+   express:[ {base:0,s:'3',r:'8–12',d:'90 s',p:'Núcleo · dorsal'},
+             {base:1,s:'3',r:'8–12',d:'90 s',p:'Núcleo · grosor espalda'},
+             {base:3,s:'3',r:'8–12',d:'60 s',p:'Núcleo · bíceps'},
+             {base:6,s:'3',r:'12–20',d:'45 s',p:'Extra · hombro lateral',extra:true},
+             {base:5,s:'2',r:'12–20',d:'45 s',p:'Extra · deltoides post.',extra:true} ],
    ex:[
     {n:'Jalón al pecho (agarre ancho)',p:'Anchura · dorsal',s:'3',r:'8–12',d:'2 min',m:['lats','biceps'],q:'jalón al pecho agarre ancho técnica',
       tech:['Siéntate con los muslos fijos bajo el rodillo; agarra algo más ancho que los hombros.','Lleva los codos hacia abajo y atrás hasta que la barra toque la parte alta del pecho; aprieta la espalda.','Error a evitar: dar tirones con la espalda baja o encoger los hombros al subir.']},
@@ -44,9 +46,11 @@ const SCHEDULE = {
    ]},
  2:{label:'Martes',ab:'MA',type:'Empuje',sub:'Pecho · Hombro · Tríceps',key:'push',
    muscles:['chest','frontdelt','sidedelt','triceps'],
-   express:[ {base:0,s:'4',r:'5–8',p:'Pecho · pesado'},
-             {base:4,s:'3',r:'6–10',p:'Hombro · press'},
-             {base:2,s:'4',r:'12–20',p:'Hombro · prioridad'} ],
+   express:[ {base:0,s:'3',r:'8–12',d:'90 s',p:'Núcleo · pecho'},
+             {base:2,s:'4',r:'12–20',d:'60 s',p:'Núcleo · hombro lateral'},
+             {base:5,s:'3',r:'10–15',d:'60 s',p:'Núcleo · tríceps'},
+             {base:4,s:'2–3',r:'8–12',d:'90 s',p:'Extra · deltoides',extra:true},
+             {base:3,s:'2',r:'12–15',d:'45 s',p:'Extra · pecho estiram.',extra:true} ],
    ex:[
     {n:'Press inclinado (mancuernas o máquina)',p:'Pecho superior',s:'4',r:'8–12',d:'2 min',m:['chest','frontdelt','triceps'],q:'press inclinado con mancuernas técnica',
       tech:['Banco a ~30°; mancuernas a la altura del pecho, codos a ~45° del torso.','Empuja arriba y un poco adentro sin chocar las mancuernas; baja con control sintiendo el pecho.','Error a evitar: bajar los codos demasiado por debajo del banco si molesta el hombro.']},
@@ -65,9 +69,11 @@ const SCHEDULE = {
    ]},
  3:{label:'Miércoles',ab:'MI',type:'Pierna',sub:'Énfasis cuádriceps',key:'legs',
    muscles:['quads','hams','glutes','calves','abs'],
-   express:[ {base:0,s:'4',r:'6–10',p:'Cuádriceps · pesado'},
-             {base:1,s:'3',r:'6–10',p:'Cuádriceps'},
-             {base:3,s:'3',r:'8–12',p:'Femoral'} ],
+   express:[ {base:0,s:'3–4',r:'8–12',d:'2 min',p:'Núcleo · cuádriceps + glúteo'},
+             {base:3,s:'3',r:'10–15',d:'90 s',p:'Núcleo · isquios'},
+             {base:4,s:'3',r:'10–15',d:'45 s',p:'Núcleo · gemelo'},
+             {base:2,s:'2–3',r:'12–20',d:'45 s',p:'Extra · cuádriceps aislado',extra:true},
+             {base:5,s:'2',r:'10–15',d:'45 s',p:'Extra · abdomen',extra:true} ],
    ex:[
     {n:'Prensa de pierna',p:'Cuádriceps · glúteo',s:'4',r:'8–12',d:'2–3 min',m:['quads','glutes','hams'],q:'prensa de pierna técnica',
       tech:['Pies a la anchura de hombros en el centro de la plataforma; espalda y glúteo pegados al asiento.','Baja controlando hasta ~90° de rodilla; empuja con el medio del pie sin bloquear de golpe.','Error a evitar: despegar la cadera del asiento o meter las rodillas hacia adentro.']},
@@ -87,9 +93,11 @@ const SCHEDULE = {
  4:{label:'Jueves',ab:'JU',rest:true},
  5:{label:'Viernes',ab:'VI',type:'Torso',sub:'Espalda · Hombro · Brazos',key:'upper',
    muscles:['lats','upperback','sidedelt','biceps','chest','triceps'],
-   express:[ {base:0,s:'4',r:'5–8',p:'Espalda · pesado'},
-             {base:1,s:'3',r:'6–10',p:'Espalda alta'},
-             {base:2,s:'4',r:'12–20',p:'Hombro · prioridad'} ],
+   express:[ {base:0,s:'3',r:'8–12',d:'90 s',p:'Núcleo · dorsal (anchura)'},
+             {base:2,s:'4',r:'12–20',d:'60 s',p:'Núcleo · hombro lateral'},
+             {base:4,s:'3',r:'8–12',d:'60 s',p:'Núcleo · bíceps'},
+             {base:1,s:'2–3',r:'10–15',d:'90 s',p:'Extra · espalda alta',extra:true},
+             {base:3,s:'2',r:'8–12',d:'90 s',p:'Extra · pecho mantener',extra:true} ],
    ex:[
     {n:'Dominadas asistidas o jalón (neutro)',p:'Anchura · 2ª variante',s:'4',r:'8–12',d:'2 min',m:['lats','biceps'],q:'dominadas asistidas máquina técnica',
       tech:['Agarre neutro (palmas enfrentadas); pecho arriba.','Tira llevando los codos abajo y atrás hasta el mentón sobre la barra (o barra al pecho); aprieta el dorsal.','Baja con control y estira del todo arriba.']},
@@ -108,9 +116,11 @@ const SCHEDULE = {
    ]},
  6:{label:'Sábado',ab:'SA',type:'Pierna',sub:'Énfasis femoral · glúteo',key:'legs',
    muscles:['hams','glutes','quads','calves','abs'],
-   express:[ {base:0,s:'4',r:'6–10',p:'Femoral · pesado'},
-             {base:1,s:'3',r:'8–12',p:'Glúteo · pesado'},
-             {base:2,s:'3',r:'8–12',p:'Femoral'} ],
+   express:[ {base:0,s:'3',r:'8–12',d:'2 min',p:'Núcleo · cadena posterior'},
+             {base:1,s:'3',r:'10–15',d:'90 s',p:'Núcleo · isquios + glúteo'},
+             {base:4,s:'3',r:'12–20',d:'45 s',p:'Núcleo · sóleo'},
+             {base:2,s:'2–3',r:'10–15',d:'90 s',p:'Extra · isquios',extra:true},
+             {base:5,s:'2',r:'10–15',d:'45 s',p:'Extra · abdomen inferior',extra:true} ],
    ex:[
     {n:'Peso muerto rumano (mancuernas/barra)',p:'Isquios · glúteo',s:'3–4',r:'8–12',d:'2–3 min',m:['hams','glutes','lowerback'],q:'peso muerto rumano con mancuernas técnica',
       tech:['De pie, peso al frente de los muslos, rodillas algo flexionadas.','Lleva la cadera hacia atrás bajando el peso pegado a las piernas con la espalda recta hasta sentir el femoral.','Sube empujando la cadera al frente. Error a evitar: redondear la espalda baja. Si molesta la lumbar, cámbialo por curl femoral tumbado + extensión de cadera.']},
@@ -442,32 +452,48 @@ function svgArea(points){
    5. MAPAS MUSCULARES (SVG)
    ---------------------------------------------------------------- */
 function hasAny(m, set){ return m.some(x => set.includes(x)); }
-function clsF(t, m){ return m.includes(t) ? 'muscle on' : 'muscle'; }
 
-function frontSVG(m){const f=t=>clsF(t,m);return `<svg viewBox="0 0 100 230" aria-hidden="true">
- <circle class="ghost" cx="50" cy="20" r="13"/><rect class="ghost" x="32" y="34" width="36" height="72" rx="11"/>
- <rect class="ghost" x="9" y="38" width="13" height="64" rx="6"/><rect class="ghost" x="78" y="38" width="13" height="64" rx="6"/>
- <rect class="ghost" x="34" y="104" width="14" height="112" rx="7"/><rect class="ghost" x="52" y="104" width="14" height="112" rx="7"/>
- <ellipse class="${f('frontdelt')}" cx="30" cy="44" rx="10" ry="8"/><ellipse class="${f('frontdelt')}" cx="70" cy="44" rx="10" ry="8"/>
- <ellipse class="${f('sidedelt')}" cx="18" cy="46" rx="5.5" ry="8"/><ellipse class="${f('sidedelt')}" cx="82" cy="46" rx="5.5" ry="8"/>
- <ellipse class="${f('chest')}" cx="40" cy="60" rx="11" ry="9"/><ellipse class="${f('chest')}" cx="60" cy="60" rx="11" ry="9"/>
- <ellipse class="${f('biceps')}" cx="16" cy="66" rx="6" ry="13"/><ellipse class="${f('biceps')}" cx="84" cy="66" rx="6" ry="13"/>
- <ellipse class="${f('forearms')}" cx="14" cy="92" rx="5" ry="14"/><ellipse class="${f('forearms')}" cx="86" cy="92" rx="5" ry="14"/>
- <rect class="${f('abs')}" x="41" y="74" width="18" height="30" rx="5"/>
- <ellipse class="${f('quads')}" cx="41" cy="142" rx="9" ry="28"/><ellipse class="${f('quads')}" cx="59" cy="142" rx="9" ry="28"/></svg>`;}
+/** Color de cada grupo muscular (paleta elegante para AMOLED). */
+const MUSCLE_COLOR = {
+  lats:'#37AEF0', upperback:'#49B9E8', lowerback:'#5CC6E0',           // espalda · azul
+  frontdelt:'#B888F7', sidedelt:'#C99AF8', reardelt:'#A877E8',        // hombros · violeta
+  chest:'#FF8559',                                                    // pecho · coral
+  biceps:'#F4B73E', triceps:'#F2C44C', forearms:'#E3AB33',            // brazos · ámbar
+  abs:'#34D6C0',                                                      // core · cian
+  quads:'#A6E024', hams:'#86CC4A', glutes:'#74C238', calves:'#B9E85A' // pierna · verde
+};
+/** Atributos del músculo: activo -> color de su grupo (el degradado #mg usa currentColor). */
+function muscleAttr(t, m){
+  return m.includes(t)
+    ? `class="muscle on" style="color:${MUSCLE_COLOR[t] || 'var(--accent)'}"`
+    : 'class="muscle"';
+}
 
-function backSVG(m){const f=t=>clsF(t,m);return `<svg viewBox="0 0 100 230" aria-hidden="true">
- <circle class="ghost" cx="50" cy="20" r="13"/><rect class="ghost" x="32" y="34" width="36" height="72" rx="11"/>
- <rect class="ghost" x="9" y="38" width="13" height="64" rx="6"/><rect class="ghost" x="78" y="38" width="13" height="64" rx="6"/>
- <rect class="ghost" x="34" y="104" width="14" height="112" rx="7"/><rect class="ghost" x="52" y="104" width="14" height="112" rx="7"/>
- <ellipse class="${f('reardelt')}" cx="30" cy="44" rx="10" ry="8"/><ellipse class="${f('reardelt')}" cx="70" cy="44" rx="10" ry="8"/>
- <rect class="${f('upperback')}" x="38" y="40" width="24" height="22" rx="6"/>
- <ellipse class="${f('lats')}" cx="36" cy="78" rx="9" ry="16"/><ellipse class="${f('lats')}" cx="64" cy="78" rx="9" ry="16"/>
- <ellipse class="${f('triceps')}" cx="16" cy="66" rx="6" ry="13"/><ellipse class="${f('triceps')}" cx="84" cy="66" rx="6" ry="13"/>
- <rect class="${f('lowerback')}" x="43" y="98" width="14" height="14" rx="4"/>
- <ellipse class="${f('glutes')}" cx="41" cy="122" rx="10" ry="11"/><ellipse class="${f('glutes')}" cx="59" cy="122" rx="10" ry="11"/>
- <ellipse class="${f('hams')}" cx="41" cy="152" rx="9" ry="24"/><ellipse class="${f('hams')}" cx="59" cy="152" rx="9" ry="24"/>
- <ellipse class="${f('calves')}" cx="41" cy="196" rx="7" ry="17"/><ellipse class="${f('calves')}" cx="59" cy="196" rx="7" ry="17"/></svg>`;}
+function frontSVG(m){const a=t=>muscleAttr(t,m);return `<svg viewBox="0 0 100 230" aria-hidden="true">
+ <circle class="ghost" cx="50" cy="19" r="12"/><rect class="ghost" x="31" y="33" width="38" height="74" rx="13"/>
+ <rect class="ghost" x="8" y="37" width="13" height="66" rx="6.5"/><rect class="ghost" x="79" y="37" width="13" height="66" rx="6.5"/>
+ <rect class="ghost" x="33" y="105" width="15" height="114" rx="7.5"/><rect class="ghost" x="52" y="105" width="15" height="114" rx="7.5"/>
+ <ellipse ${a('frontdelt')} cx="29" cy="44" rx="11" ry="8.5"/><ellipse ${a('frontdelt')} cx="71" cy="44" rx="11" ry="8.5"/>
+ <ellipse ${a('sidedelt')} cx="17" cy="47" rx="6" ry="8.5"/><ellipse ${a('sidedelt')} cx="83" cy="47" rx="6" ry="8.5"/>
+ <path ${a('chest')} d="M49 52 q-13 0 -15 11 q-1 8 15 9 z"/><path ${a('chest')} d="M51 52 q13 0 15 11 q1 8 -15 9 z"/>
+ <ellipse ${a('biceps')} cx="15" cy="66" rx="6.5" ry="14"/><ellipse ${a('biceps')} cx="85" cy="66" rx="6.5" ry="14"/>
+ <ellipse ${a('forearms')} cx="13" cy="93" rx="5.5" ry="15"/><ellipse ${a('forearms')} cx="87" cy="93" rx="5.5" ry="15"/>
+ <rect ${a('abs')} x="42" y="74" width="16" height="30" rx="6"/>
+ <path ${a('quads')} d="M40 110 q9 0 9 14 l-2 40 q-1 8 -8 8 q-6 0 -6 -10 l1 -42 q0 -10 6 -10z"/>
+ <path ${a('quads')} d="M60 110 q-9 0 -9 14 l2 40 q1 8 8 8 q6 0 6 -10 l-1 -42 q0 -10 -6 -10z"/></svg>`;}
+
+function backSVG(m){const a=t=>muscleAttr(t,m);return `<svg viewBox="0 0 100 230" aria-hidden="true">
+ <circle class="ghost" cx="50" cy="19" r="12"/><rect class="ghost" x="31" y="33" width="38" height="74" rx="13"/>
+ <rect class="ghost" x="8" y="37" width="13" height="66" rx="6.5"/><rect class="ghost" x="79" y="37" width="13" height="66" rx="6.5"/>
+ <rect class="ghost" x="33" y="105" width="15" height="114" rx="7.5"/><rect class="ghost" x="52" y="105" width="15" height="114" rx="7.5"/>
+ <ellipse ${a('reardelt')} cx="29" cy="44" rx="11" ry="8.5"/><ellipse ${a('reardelt')} cx="71" cy="44" rx="11" ry="8.5"/>
+ <path ${a('upperback')} d="M50 38 l13 4 q3 10 -1 18 l-12 4 l-12 -4 q-4 -8 -1 -18 z"/>
+ <path ${a('lats')} d="M48 60 q-12 2 -13 16 q-1 9 12 12 z"/><path ${a('lats')} d="M52 60 q12 2 13 16 q1 9 -12 12 z"/>
+ <ellipse ${a('triceps')} cx="15" cy="66" rx="6.5" ry="14"/><ellipse ${a('triceps')} cx="85" cy="66" rx="6.5" ry="14"/>
+ <rect ${a('lowerback')} x="43" y="100" width="14" height="14" rx="4"/>
+ <ellipse ${a('glutes')} cx="41" cy="124" rx="10" ry="11"/><ellipse ${a('glutes')} cx="59" cy="124" rx="10" ry="11"/>
+ <ellipse ${a('hams')} cx="41" cy="154" rx="9" ry="24"/><ellipse ${a('hams')} cx="59" cy="154" rx="9" ry="24"/>
+ <ellipse ${a('calves')} cx="41" cy="197" rx="7.5" ry="17"/><ellipse ${a('calves')} cx="59" cy="197" rx="7.5" ry="17"/></svg>`;}
 
 function heroMap(m){return `<div class="map"><div class="fig">${frontSVG(m)}<small>Frente</small></div><div class="fig">${backSVG(m)}<small>Espalda</small></div></div>`;}
 function miniMap(m){let h='';if(hasAny(m,FRONT))h+=frontSVG(m);if(hasAny(m,BACK))h+=backSVG(m);return `<div class="mini">${h}</div>`;}
@@ -511,11 +537,15 @@ function render(){
   }
   const exList = visibleEx(day);
   const total = exList.length;
+  const firstExtra = exList.findIndex(e => e.extra);
   const list = exList.map((e,i)=>{
     const isDone = !!done[exKey(i)];
     const yt = `https://www.youtube.com/results?search_query=${encodeURIComponent(e.q)}`;
     const steps = e.tech.map(t=>`<li>${t}</li>`).join('');
-    return `<div class="ex ${e.opt?'opt':''} ${isDone?'done':''}" id="ex-${i}">
+    const divider = (i === firstExtra && firstExtra > 0)
+      ? `<div class="ex-divider">＋ Extra · si te alcanza el tiempo</div>` : '';
+    const tag = e.extra ? '<span class="tag-opt">EXTRA</span>' : (e.opt ? '<span class="tag-opt">OPCIONAL</span>' : '');
+    return `${divider}<div class="ex ${e.opt||e.extra?'opt':''} ${isDone?'done':''}" id="ex-${i}">
       <div class="ex-top">
         <label class="check" aria-label="Marcar ${e.n}">
           <input type="checkbox" class="check-box" data-k="done" data-i="${i}" ${isDone?'checked':''}>
@@ -523,21 +553,21 @@ function render(){
         </label>
         <div class="ex-main">
           <div class="ex-head">
-            <div><div class="name">${e.n}${e.opt?'<span class="tag-opt">OPCIONAL</span>':''}</div><div class="purpose">${e.p}</div></div>
-            ${miniMap(e.m)}
+            <div class="name">${e.n}${tag}</div>
+            <div class="purpose">${e.p}</div>
           </div>
           <div class="stats">
             <span class="stat"><span>Series</span>${e.s}</span>
             <span class="stat"><span>Reps</span>${e.r}</span>
-            <button class="stat stat-rest" type="button" data-rest="${parseRestSeconds(e.d)}" aria-label="Iniciar descanso de ${e.d}">⏱ <span>Descanso</span>${e.d}</button>
+            <button class="stat stat-rest" type="button" data-rest="${parseRestSeconds(e.d)}" aria-label="Descanso ${e.d}">⏱ ${e.d}</button>
           </div>
           ${logRow(i)}
           ${bestRow(i, e)}
-          ${noteRow(i)}
-          <div class="tech"><div class="tech-label">📋 Cómo hacerlo</div><ol>${steps}</ol></div>
-          <a class="video" href="${yt}" target="_blank" rel="noopener">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> Ver video
-          </a>
+          <div class="acc-wrap">
+            <details class="acc"><summary><span class="acc-ico">📋</span> Cómo hacerlo</summary><ol class="tech-ol">${steps}</ol></details>
+            ${noteDetails(i)}
+            <a class="acc-link" href="${yt}" target="_blank" rel="noopener"><span class="acc-ico">▶</span> Ver video</a>
+          </div>
         </div>
       </div>
     </div>`;
@@ -547,7 +577,6 @@ function render(){
       <div class="type">${day.type}</div>
       <div class="sub">${day.label} ${dateForDow(current).getDate()} ${MES[dateForDow(current).getMonth()]} · ${day.sub}</div>
     </div>${heroMap(day.muscles)}</div>
-    <div class="focus">${day.sub.split(' · ').map(x=>`<span class="chip">${x}</span>`).join('')}</div>
     <div class="progress"><div class="row"><span>Progreso de hoy &nbsp; <b id="pcount">0</b> / ${total}</span>
       <button class="reset" onclick="resetDay()">Reiniciar</button></div>
       <div class="bar"><i id="pbar"></i></div></div>
@@ -596,14 +625,15 @@ function updateBestCue(i){
   el.innerHTML = bestCueContent(best, cur);
 }
 
-/** HTML de la nota rápida del ejercicio (textarea autoguardado). */
-function noteRow(i){
+/** Nota rápida colapsable (se abre sola si ya hay texto). */
+function noteDetails(i){
   const val = notes[exKey(i)] || '';
-  return `<div class="note">
+  return `<details class="acc"${val ? ' open' : ''}>
+    <summary><span class="acc-ico">📝</span> Nota${val ? ' •' : ''}</summary>
     <textarea class="note-input" rows="1" data-k="note" data-i="${i}"
-      placeholder="📝 Nota rápida: cómo te sentiste, subir peso la próxima…"
+      placeholder="Cómo te sentiste, subir peso la próxima…"
       aria-label="Nota del ejercicio">${escapeHtml(val)}</textarea>
-  </div>`;
+  </details>`;
 }
 
 /* ----------------------------------------------------------------
@@ -812,11 +842,50 @@ function closePanels(){
 /* ----------------------------------------------------------------
    7g. PANEL DE PROGRESO  (gráficas de volumen y récords)
    ---------------------------------------------------------------- */
+/** Descarga un contenido como archivo (offline). */
+function download(content, filename, type){
+  const blob = new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+}
+
+/** Filas de estadísticas: un ejercicio por récord registrado. */
+function statsRows(){
+  return Object.keys(bests).map(k => {
+    const [d, bi] = k.split('-').map(Number);
+    const ex = SCHEDULE[d] && SCHEDULE[d].ex && SCHEDULE[d].ex[bi];
+    if(!ex) return null;
+    const ld = loads[`${d}-${bi}`] || {};
+    return { dia: SCHEDULE[d].label, ejercicio: ex.n, record: bests[k].w, peso: ld.w || 0, reps: ld.reps || 0 };
+  }).filter(Boolean).sort((a, b) => b.record - a.record);
+}
+
+/** Exporta las estadísticas como CSV (abre en Sheets/Excel/My Files). */
+function exportCSV(){
+  const lines = ['Dia,Ejercicio,Record (kg),Ultimo peso (kg),Ultimas reps'];
+  statsRows().forEach(r =>
+    lines.push([r.dia, '"' + r.ejercicio.replace(/"/g, '""') + '"', r.record, r.peso, r.reps].join(',')));
+  lines.push('', 'Semana (lunes),Volumen total (kg),Ejercicios completados');
+  Object.keys(history).sort().forEach(k =>
+    lines.push([k, history[k].volume || 0, history[k].completed || 0].join(',')));
+  lines.push([weekId() + ' (actual)', weekVolume(loads), Object.values(done).filter(Boolean).length].join(','));
+  download('﻿' + lines.join('\r\n'), 'entreno-v-estadisticas.csv', 'text/csv;charset=utf-8');
+}
+
+/** Exporta un respaldo JSON completo (para no perder nada / cambiar de móvil). */
+function exportJSON(){
+  download(localStorage.getItem(Store.KEY) || '{}', 'entreno-v-respaldo.json', 'application/json');
+}
+
 function renderProgress(){
   const host = document.getElementById('progress');
   if(!host) return;
 
   // --- Resumen ---
+  const rows = statsRows();
   const weekNow = weekVolume(loads);
   const sessions = ORDER.filter(d => !SCHEDULE[d].rest)
     .filter(d => SCHEDULE[d].ex.length && SCHEDULE[d].ex.every((_, i) => done[`${d}-${i}`])).length;
@@ -859,6 +928,15 @@ function renderProgress(){
     ${trend.length > 1 ? svgArea(trend) : '<p><small>Aún no hay semanas anteriores: esta gráfica crece cada lunes. 📈</small></p>'}
     <h3>Tus récords (peso máximo)</h3>
     ${recRows.length ? hBars(recRows, '--legs') : '<p><small>Registra pesos y aquí verás tus máximos por ejercicio.</small></p>'}
+    <h3>Tabla de datos</h3>
+    ${rows.length ? `<div class="data-scroll"><table class="data-table">
+        <tr><th>Día</th><th>Ejercicio</th><th>Récord</th><th>Últ.</th></tr>
+        ${rows.map(r => `<tr><td>${r.dia.slice(0,3)}</td><td>${r.ejercicio}</td><td>${fmtKg(r.record)}</td><td>${r.peso ? fmtKg(r.peso) + '×' + r.reps : '—'}</td></tr>`).join('')}
+      </table></div>` : '<p><small>Registra pesos para llenar la tabla.</small></p>'}
+    <div class="export-row">
+      <button class="pbtn" onclick="exportCSV()">📥 CSV (tabla)</button>
+      <button class="pbtn" onclick="exportJSON()">💾 Respaldo JSON</button>
+    </div>
     <button class="panel-close" onclick="closePanels()">Cerrar ✕</button>`;
 }
 

@@ -207,6 +207,7 @@ footer p{margin:0 0 8px;} footer b{color:var(--text);}
   background:var(--surface); border:1px solid var(--accent);
   box-shadow:0 8px 26px rgba(0,0,0,.5); max-width:92vw;}
 .rest-timer .rest-ico{font-size:17px;}
+.rest-label{font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--muted);}
 .rest-time{font-size:22px; font-weight:800; font-variant-numeric:tabular-nums; min-width:62px; text-align:center;}
 .rest-timer.done{border-color:var(--legs); animation:restPulse .5s ease infinite alternate;}
 @keyframes restPulse{from{box-shadow:0 0 0 0 color-mix(in srgb,var(--legs) 60%,transparent);}
@@ -231,3 +232,14 @@ footer p{margin:0 0 8px;} footer b{color:var(--text);}
   0%{transform:translateY(-10px) rotate(0); opacity:1;}
   100%{transform:translateY(105vh) rotate(540deg); opacity:.9;}}
 @media (prefers-reduced-motion:reduce){.confetti{display:none;}}
+
+/* Panel de recordatorios de calendario */
+.cal-list{display:flex; flex-direction:column; gap:8px; margin:4px 0 6px;}
+.cal-link{display:flex; align-items:center; justify-content:space-between; gap:10px;
+  padding:11px 13px; border-radius:11px; text-decoration:none;
+  background:var(--surface-2); border:1px solid var(--border); color:var(--text);
+  font-size:13px; transition:transform .1s, border-color .15s;}
+.cal-link:active{transform:scale(.98);}
+.cal-link:hover{border-color:var(--accent);}
+.cal-link b{font-weight:700;}
+.cal-go{font-size:12px; font-weight:700; color:var(--accent); white-space:nowrap;}

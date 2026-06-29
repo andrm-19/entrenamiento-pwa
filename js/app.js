@@ -578,8 +578,14 @@ function onFieldChange(e){
     done[key] = el.checked;
     const card = el.closest('.ex');
     if(card) card.classList.toggle('done', el.checked);
-    if(el.checked) celebrateIfComplete();   // ¿completaste todo el día?
     updateProgress();
+    if(el.checked){
+      // Terminaste el día -> confeti; si no, arranca el descanso AUTOMÁTICO.
+      if(!celebrateIfComplete()){
+        const ex = visibleEx(SCHEDULE[current])[i];
+        if(ex) startRest(parseRestSeconds(ex.d));
+      }
+    }
   } else if(k === 'load'){
     let num = parseFloat(el.value);
     if(isNaN(num) || num < 0) num = 0;
@@ -653,10 +659,11 @@ function addRest(sec){ restLeft = Math.max(0, restLeft + sec); paintRest(); }
    ---------------------------------------------------------------- */
 function celebrateIfComplete(){
   const day = SCHEDULE[current];
-  if(day.rest) return;
+  if(day.rest) return false;
   const ex = visibleEx(day);
   const allDone = ex.length && ex.every((_, i) => done[exKey(i)]);
-  if(allDone) confettiBurst();
+  if(allDone){ stopRest(); confettiBurst(); return true; }   // día terminado: corta el descanso
+  return false;
 }
 function confettiBurst(){
   const layer = document.getElementById('confetti');
@@ -735,13 +742,14 @@ function select(d){
 function openPanel(id){
   closePanels();
   if(id === 'progress') renderProgress();   // genera las gráficas al abrir
+  if(id === 'calendar') renderCalendar();   // genera los enlaces de recordatorio
   const p = document.getElementById(id);
   p.hidden = false;
   p.scrollIntoView({behavior:'smooth',block:'start'});
 }
 
 function closePanels(){
-  ['guide','nutri','progress'].forEach(id=>{
+  ['guide','nutri','progress','calendar'].forEach(id=>{
     const p = document.getElementById(id);
     if(p) p.hidden = true;
   });
@@ -803,12 +811,53 @@ function toggleStudy(on){
 }
 
 /* ----------------------------------------------------------------
-   7d. EXPORTAR A CALENDARIO (.ics, generado 100 % offline)
+   7d. RECORDATORIOS DE CALENDARIO
    ------------------------------------------------------------
-   Crea un evento semanal recurrente por cada día de entrenamiento
-   de la semana en curso y lo descarga como archivo .ics estándar.
+   Dos vías, ambas sin servidor:
+   - Google Calendar: enlace "Añadir" con evento semanal pre-cargado.
+   - Apple/otros: descarga de un .ics estándar (se importa al calendario).
    ---------------------------------------------------------------- */
-function exportarCalendario(){
+const CAL_HOUR = 18;   // hora por defecto del entreno (18:00)
+
+/** Enlace para añadir el entreno de un día a Google Calendar (recurrente). */
+function googleCalendarUrl(d){
+  const day = SCHEDULE[d];
+  const date = dateForDow(d);
+  const pad = n => String(n).padStart(2, '0');
+  const fmt = (hh, mm) => `${date.getFullYear()}${pad(date.getMonth()+1)}${pad(date.getDate())}T${pad(hh)}${pad(mm)}00`;
+  const desc = day.ex.map((e, k) => `${k+1}. ${e.n} — ${e.s}x${e.r}`).join('\n');
+  const params = new URLSearchParams({
+    action: 'TEMPLATE',
+    text: `🏋️ Entreno · ${day.type}`,
+    dates: `${fmt(CAL_HOUR, 0)}/${fmt(CAL_HOUR + 1, 0)}`,
+    details: `${day.sub}\n\n${desc}`,
+    recur: 'RRULE:FREQ=WEEKLY'
+  });
+  return `https://calendar.google.com/calendar/render?${params.toString()}`;
+}
+
+/** Pinta el panel de recordatorios (enlaces de Google + descarga .ics). */
+function renderCalendar(){
+  const host = document.getElementById('calendar');
+  if(!host) return;
+  const links = ORDER.filter(d => !SCHEDULE[d].rest).map(d => {
+    const day = SCHEDULE[d];
+    return `<a class="cal-link" href="${googleCalendarUrl(d)}" target="_blank" rel="noopener">
+      <span><b>${day.label}</b> · ${day.type}</span><span class="cal-go">➕ Google</span></a>`;
+  }).join('');
+  host.innerHTML = `
+    <h3>Añade tus entrenos al calendario</h3>
+    <p><small>Recordatorios <b>semanales</b> a las ${CAL_HOUR}:00. Toca un día y se abre Google
+      Calendar con todo pre-cargado: solo pulsa <b>Guardar</b>.</small></p>
+    <div class="cal-list">${links}</div>
+    <h3>¿iPhone u otro calendario?</h3>
+    <p><small>Descarga el archivo y ábrelo con tu app (Apple Calendar lo importa solo).</small></p>
+    <button class="pbtn" onclick="descargarICS()" style="margin-top:4px">📥 Descargar .ics</button>
+    <button class="panel-close" onclick="closePanels()">Cerrar</button>`;
+}
+
+/** Genera y descarga un .ics estándar con los entrenos de la semana (offline). */
+function descargarICS(){
   const pad = n => String(n).padStart(2, '0');
   const esc = s => String(s).replace(/\\/g,'\\\\').replace(/;/g,'\\;').replace(/,/g,'\\,').replace(/\n/g,'\\n');
   const fmtLocal = (d, hh, mm) => `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}T${pad(hh)}${pad(mm)}00`;
@@ -824,8 +873,8 @@ function exportarCalendario(){
       'BEGIN:VEVENT',
       `UID:entrenov-${d}-${weekId()}@local`,
       `DTSTAMP:${stamp}`,
-      `DTSTART:${fmtLocal(date,18,0)}`,        // 18:00, hora local "flotante"
-      `DTEND:${fmtLocal(date,19,0)}`,          // 1 h de duración
+      `DTSTART:${fmtLocal(date,CAL_HOUR,0)}`,    // hora local "flotante"
+      `DTEND:${fmtLocal(date,CAL_HOUR+1,0)}`,    // 1 h de duración
       'RRULE:FREQ=WEEKLY',                     // se repite cada semana
       `SUMMARY:${esc('🏋️ Entreno · ' + day.type)}`,
       `DESCRIPTION:${esc(day.sub + '\n\n' + desc)}`,

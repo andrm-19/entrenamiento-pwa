@@ -7,6 +7,9 @@ _backup_monolito.html
 # Archivos generados por la app (exportaciones)
 *.ics
 
+# Documentos personales (no se publican)
+*.pdf
+
 # Basura del sistema operativo
 Thumbs.db
 desktop.ini

@@ -434,18 +434,49 @@ function hBars(rows, accentVar){
 
 /** Gráfica de área para la tendencia semanal. points: [{label, value}]. */
 function svgArea(points){
-  const W = 300, H = 120, pad = 24, top = 14;
+  const W = 320, H = 150, padL = 34, padR = 8, padT = 14, padB = 22;
   const max = Math.max(1, ...points.map(p => p.value));
   const n = points.length;
-  const xAt = i => pad + (n === 1 ? (W - 2*pad)/2 : i * (W - 2*pad) / (n - 1));
-  const yAt = v => H - pad - (v / max) * (H - pad - top);
+  const xAt = i => padL + (n === 1 ? (W - padL - padR)/2 : i * (W - padL - padR) / (n - 1));
+  const yAt = v => H - padB - (v / max) * (H - padB - padT);
+  // Rejilla horizontal + etiquetas del eje Y (0 · mitad · máx) para lectura precisa.
+  const grid = [0, 0.5, 1].map(f => {
+    const val = max * f, y = yAt(val).toFixed(1);
+    return `<line class="area-grid" x1="${padL}" y1="${y}" x2="${W-padR}" y2="${y}"/>
+      <text class="axis-lbl" x="${padL-6}" y="${(+y+3).toFixed(1)}" text-anchor="end">${fmtKg(val)}</text>`;
+  }).join('');
   const pts = points.map((p, i) => `${xAt(i).toFixed(1)},${yAt(p.value).toFixed(1)}`);
-  const area = `M ${xAt(0).toFixed(1)},${H-pad} L ${pts.join(' L ')} L ${xAt(n-1).toFixed(1)},${H-pad} Z`;
-  const dots = points.map((p, i) =>
-    `<circle class="area-dot" cx="${xAt(i).toFixed(1)}" cy="${yAt(p.value).toFixed(1)}" r="3"/>
-     <text class="clbl" x="${xAt(i).toFixed(1)}" y="${H-7}" text-anchor="middle">${p.label}</text>`).join('');
-  return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Tendencia semanal">
-    <path class="area-fill" d="${area}"/><path class="area-line" d="M ${pts.join(' L ')}"/>${dots}</svg>`;
+  const area = `M ${xAt(0).toFixed(1)},${(H-padB).toFixed(1)} L ${pts.join(' L ')} L ${xAt(n-1).toFixed(1)},${(H-padB).toFixed(1)} Z`;
+  const marks = points.map((p, i) => {
+    const last = i === n-1;
+    return `<circle class="area-dot${last ? ' last' : ''}" cx="${xAt(i).toFixed(1)}" cy="${yAt(p.value).toFixed(1)}" r="${last ? 3.6 : 2.6}"/>
+     <text class="axis-lbl" x="${xAt(i).toFixed(1)}" y="${H-6}" text-anchor="middle">${p.label}</text>`;
+  }).join('');
+  return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Tendencia de volumen semanal">
+    ${grid}<path class="area-fill" d="${area}"/><path class="area-line" d="M ${pts.join(' L ')}"/>${marks}</svg>`;
+}
+
+/**
+ * Heatmap de constancia estilo "commits de GitHub": una casilla por semana
+ * (hasta 12), coloreada en 5 niveles según el volumen de esa semana respecto
+ * al máximo. La semana en curso lleva un anillo. Crece cada lunes al archivarse.
+ */
+function consistencyHeatmap(weekNow){
+  const weeks = [
+    ...Object.keys(history).sort().map(k => ({ id:k, vol:history[k].volume || 0 })),
+    { id: weekId(), vol: weekNow, now:true }
+  ].slice(-12);
+  const max = Math.max(1, ...weeks.map(w => w.vol));
+  const level = v => v <= 0 ? 0 : v < max*0.25 ? 1 : v < max*0.5 ? 2 : v < max*0.75 ? 3 : 4;
+  const cells = weeks.map(w => {
+    const dd = w.id.slice(5).replace('-', '/');   // "MM/DD"
+    const txt = w.vol > 0 ? `${dd}: ${fmtKg(w.vol)} kg` : `${dd}: sin registro`;
+    return `<span class="heat-cell l${level(w.vol)}${w.now ? ' now' : ''}" title="Semana ${txt}"></span>`;
+  }).join('');
+  return `<div class="heat">${cells}</div>
+    <div class="heat-legend"><span>Menos</span>
+      <span class="heat-cell l0"></span><span class="heat-cell l1"></span><span class="heat-cell l2"></span><span class="heat-cell l3"></span><span class="heat-cell l4"></span>
+      <span>Más</span></div>`;
 }
 
 /* ----------------------------------------------------------------
@@ -469,34 +500,71 @@ function muscleAttr(t, m){
     : 'class="muscle"';
 }
 
-function frontSVG(m){const a=t=>muscleAttr(t,m);return `<svg viewBox="0 0 100 230" aria-hidden="true">
- <circle class="ghost" cx="50" cy="19" r="12"/><rect class="ghost" x="31" y="33" width="38" height="74" rx="13"/>
- <rect class="ghost" x="8" y="37" width="13" height="66" rx="6.5"/><rect class="ghost" x="79" y="37" width="13" height="66" rx="6.5"/>
- <rect class="ghost" x="33" y="105" width="15" height="114" rx="7.5"/><rect class="ghost" x="52" y="105" width="15" height="114" rx="7.5"/>
- <ellipse ${a('frontdelt')} cx="29" cy="44" rx="11" ry="8.5"/><ellipse ${a('frontdelt')} cx="71" cy="44" rx="11" ry="8.5"/>
- <ellipse ${a('sidedelt')} cx="17" cy="47" rx="6" ry="8.5"/><ellipse ${a('sidedelt')} cx="83" cy="47" rx="6" ry="8.5"/>
- <path ${a('chest')} d="M49 52 q-13 0 -15 11 q-1 8 15 9 z"/><path ${a('chest')} d="M51 52 q13 0 15 11 q1 8 -15 9 z"/>
- <ellipse ${a('biceps')} cx="15" cy="66" rx="6.5" ry="14"/><ellipse ${a('biceps')} cx="85" cy="66" rx="6.5" ry="14"/>
- <ellipse ${a('forearms')} cx="13" cy="93" rx="5.5" ry="15"/><ellipse ${a('forearms')} cx="87" cy="93" rx="5.5" ry="15"/>
- <rect ${a('abs')} x="42" y="74" width="16" height="30" rx="6"/>
- <path ${a('quads')} d="M40 110 q9 0 9 14 l-2 40 q-1 8 -8 8 q-6 0 -6 -10 l1 -42 q0 -10 6 -10z"/>
- <path ${a('quads')} d="M60 110 q-9 0 -9 14 l2 40 q1 8 8 8 q6 0 6 -10 l-1 -42 q0 -10 -6 -10z"/></svg>`;}
+/* Silueta base compartida (frente y espalda): cabeza, cuello, torso, brazos y
+   piernas en gris tenue (.ghost). Encima se pintan los músculos coloreables.
+   viewBox 100×230, simétrica respecto a x=50. */
+const GHOST_BODY = `
+ <circle class="ghost" cx="50" cy="15" r="9.5"/>
+ <path class="ghost" d="M44 23 q6 4 12 0 l-1 7 q-5 3 -10 0 z"/>
+ <path class="ghost" d="M50 28 C61 28 67 33 69 43 C71 53 68 67 65 83 C63 96 62 102 61 109 C60 116 62 119 59 121 C55 123 45 123 41 121 C38 119 40 116 39 109 C38 102 37 96 35 83 C32 67 29 53 31 43 C33 33 39 28 50 28 Z"/>
+ <path class="ghost" d="M33 42 C26 45 22 55 20 74 C18 90 17 104 19 116 C20 122 25 122 26 116 C28 103 32 84 35 66 C37 54 37 46 34 43 Z"/>
+ <path class="ghost" d="M67 42 C74 45 78 55 80 74 C82 90 83 104 81 116 C80 122 75 122 74 116 C72 103 68 84 65 66 C63 54 63 46 66 43 Z"/>
+ <path class="ghost" d="M41 120 C34 122 33 135 34 155 C35 174 37 192 40 209 C41 218 47 218 48 208 C49 190 49 160 49 138 C49 128 47 119 41 120 Z"/>
+ <path class="ghost" d="M59 120 C66 122 67 135 66 155 C65 174 63 192 60 209 C59 218 53 218 52 208 C51 190 51 160 51 138 C51 128 53 119 59 120 Z"/>`;
 
-function backSVG(m){const a=t=>muscleAttr(t,m);return `<svg viewBox="0 0 100 230" aria-hidden="true">
- <circle class="ghost" cx="50" cy="19" r="12"/><rect class="ghost" x="31" y="33" width="38" height="74" rx="13"/>
- <rect class="ghost" x="8" y="37" width="13" height="66" rx="6.5"/><rect class="ghost" x="79" y="37" width="13" height="66" rx="6.5"/>
- <rect class="ghost" x="33" y="105" width="15" height="114" rx="7.5"/><rect class="ghost" x="52" y="105" width="15" height="114" rx="7.5"/>
- <ellipse ${a('reardelt')} cx="29" cy="44" rx="11" ry="8.5"/><ellipse ${a('reardelt')} cx="71" cy="44" rx="11" ry="8.5"/>
- <path ${a('upperback')} d="M50 38 l13 4 q3 10 -1 18 l-12 4 l-12 -4 q-4 -8 -1 -18 z"/>
- <path ${a('lats')} d="M48 60 q-12 2 -13 16 q-1 9 12 12 z"/><path ${a('lats')} d="M52 60 q12 2 13 16 q1 9 -12 12 z"/>
- <ellipse ${a('triceps')} cx="15" cy="66" rx="6.5" ry="14"/><ellipse ${a('triceps')} cx="85" cy="66" rx="6.5" ry="14"/>
- <rect ${a('lowerback')} x="43" y="100" width="14" height="14" rx="4"/>
- <ellipse ${a('glutes')} cx="41" cy="124" rx="10" ry="11"/><ellipse ${a('glutes')} cx="59" cy="124" rx="10" ry="11"/>
- <ellipse ${a('hams')} cx="41" cy="154" rx="9" ry="24"/><ellipse ${a('hams')} cx="59" cy="154" rx="9" ry="24"/>
- <ellipse ${a('calves')} cx="41" cy="197" rx="7.5" ry="17"/><ellipse ${a('calves')} cx="59" cy="197" rx="7.5" ry="17"/></svg>`;}
+function frontSVG(m){const a=t=>muscleAttr(t,m);return `<svg viewBox="0 0 100 230" aria-hidden="true">${GHOST_BODY}
+ <path ${a('frontdelt')} d="M34 44 C27 44 21 49 19 57 C25 55 31 54 37 54 C41 51 39 45 34 44 Z"/>
+ <path ${a('frontdelt')} d="M66 44 C73 44 79 49 81 57 C75 55 69 54 63 54 C59 51 61 45 66 44 Z"/>
+ <ellipse ${a('sidedelt')} cx="20" cy="60" rx="5" ry="9"/>
+ <ellipse ${a('sidedelt')} cx="80" cy="60" rx="5" ry="9"/>
+ <path ${a('chest')} d="M49 54 C40 53 33 57 31 65 C30 72 35 78 44 77 C48 76 49 73 49 66 Z"/>
+ <path ${a('chest')} d="M51 54 C60 53 67 57 69 65 C70 72 65 78 56 77 C52 76 51 73 51 66 Z"/>
+ <ellipse ${a('biceps')} cx="19" cy="75" rx="6" ry="13"/>
+ <ellipse ${a('biceps')} cx="81" cy="75" rx="6" ry="13"/>
+ <ellipse ${a('forearms')} cx="17" cy="103" rx="5.5" ry="15"/>
+ <ellipse ${a('forearms')} cx="83" cy="103" rx="5.5" ry="15"/>
+ <path ${a('abs')} d="M42 79 C46 77 54 77 58 79 C61 80 61 84 61 88 L60 104 C60 108 57 110 54 110 L46 110 C43 110 40 108 40 104 L39 88 C39 84 39 80 42 79 Z"/>
+ <path class="sep" d="M50 80 V109 M42 89 H58 M41 99 H59"/>
+ <path ${a('quads')} d="M40 124 C34 126 34 139 35 157 C36 169 39 177 44 176 C48 175 48 165 47 151 C46 137 46 126 44 124 C43 123 41 123 40 124 Z"/>
+ <path ${a('quads')} d="M60 124 C66 126 66 139 65 157 C64 169 61 177 56 176 C52 175 52 165 53 151 C54 137 54 126 56 124 C57 123 59 123 60 124 Z"/>
+ <path class="sep" d="M43 130 C41 146 42 162 44 174 M57 130 C59 146 58 162 56 174"/></svg>`;}
+
+function backSVG(m){const a=t=>muscleAttr(t,m);return `<svg viewBox="0 0 100 230" aria-hidden="true">${GHOST_BODY}
+ <path ${a('reardelt')} d="M34 44 C27 44 21 49 19 57 C25 55 31 54 37 54 C41 51 39 45 34 44 Z"/>
+ <path ${a('reardelt')} d="M66 44 C73 44 79 49 81 57 C75 55 69 54 63 54 C59 51 61 45 66 44 Z"/>
+ <path ${a('upperback')} d="M50 33 C56 33 63 37 67 43 C64 53 58 59 50 60 C42 59 36 53 33 43 C37 37 44 33 50 33 Z"/>
+ <path class="sep" d="M50 35 V59"/>
+ <path ${a('lats')} d="M49 61 C42 61 36 65 35 75 C34 86 40 98 49 102 C49 88 49 74 49 61 Z"/>
+ <path ${a('lats')} d="M51 61 C58 61 64 65 65 75 C66 86 60 98 51 102 C51 88 51 74 51 61 Z"/>
+ <ellipse ${a('triceps')} cx="19" cy="75" rx="6" ry="13"/>
+ <ellipse ${a('triceps')} cx="81" cy="75" rx="6" ry="13"/>
+ <path ${a('lowerback')} d="M44 101 C47 100 53 100 56 101 C57 106 56 111 55 114 C52 115 48 115 45 114 C44 111 43 106 44 101 Z"/>
+ <path ${a('glutes')} d="M49 116 C42 116 35 120 35 130 C35 139 42 144 49 142 C49 133 49 124 49 116 Z"/>
+ <path ${a('glutes')} d="M51 116 C58 116 65 120 65 130 C65 139 58 144 51 142 C51 133 51 124 51 116 Z"/>
+ <path class="sep" d="M50 116 V142"/>
+ <path ${a('hams')} d="M40 145 C35 147 35 159 37 171 C39 179 43 180 45 173 C46 161 46 149 44 145 C43 144 41 144 40 145 Z"/>
+ <path ${a('hams')} d="M60 145 C65 147 65 159 63 171 C61 179 57 180 55 173 C54 161 54 149 56 145 C57 144 59 144 60 145 Z"/>
+ <path ${a('calves')} d="M40 185 C36 187 37 199 39 209 C41 216 44 216 45 208 C46 198 45 188 43 185 C42 184 41 184 40 185 Z"/>
+ <path ${a('calves')} d="M60 185 C64 187 63 199 61 209 C59 216 56 216 55 208 C54 198 55 188 57 185 C58 184 59 184 60 185 Z"/></svg>`;}
 
 function heroMap(m){return `<div class="map"><div class="fig">${frontSVG(m)}<small>Frente</small></div><div class="fig">${backSVG(m)}<small>Espalda</small></div></div>`;}
 function miniMap(m){let h='';if(hasAny(m,FRONT))h+=frontSVG(m);if(hasAny(m,BACK))h+=backSVG(m);return `<div class="mini">${h}</div>`;}
+
+/** Figura anatómica compacta por ejercicio: muestra el lado (frente/espalda)
+    con más músculos trabajados, para no recargar la tarjeta con dos siluetas. */
+function exFig(m){
+  if(!m || !m.length) return '';
+  // Manda el músculo PRINCIPAL (el primero de la lista suele ser el objetivo);
+  // si no es concluyente, decide por qué lado tiene más músculos trabajados.
+  const useBack = BACK.includes(m[0]) ? true
+                : FRONT.includes(m[0]) ? false
+                : m.filter(x => BACK.includes(x)).length > m.filter(x => FRONT.includes(x)).length;
+  return `<div class="exfig" aria-hidden="true">${useBack ? backSVG(m) : frontSVG(m)}</div>`;
+}
+
+/** Clave de la nota de sesión (por día y modo). Feedback general del entreno. */
+function sessKey(){ return `sess-${studyMode ? 'x' : ''}${current}`; }
+function sessionNote(){ return notes[sessKey()] || ''; }
 
 /* ----------------------------------------------------------------
    6. RENDER
@@ -516,12 +584,11 @@ function renderDays(){
   const nav = document.getElementById('days');
   nav.innerHTML = ORDER.map(d=>{
     const day = SCHEDULE[d], isToday = d===todayDow, isActive = d===current;
-    const accentVar = day.rest ? '--rest' : C[day.key];
     const dt = dateForDow(d).getDate();
-    return `<button class="day-btn ${isActive?'active':''} ${isToday?'today':''}" style="${isActive?`--accent:var(${accentVar})`:''}" onclick="select(${d})" aria-label="${day.label} ${dt}${isToday?' (hoy)':''}">
-      <span class="ab">${day.ab}</span><span class="date">${dt}</span><span class="dot"></span></button>`;
+    const letter = day.ab.charAt(0);   // L · M · M · J · V · S · D (una sola letra: menos ruido)
+    return `<button class="day-btn ${isActive?'active':''} ${isToday?'today':''} ${day.rest?'rest':''}" onclick="select(${d})" aria-label="${day.label} ${dt}${isToday?' (hoy)':''}${day.rest?' · descanso':''}">
+      <span class="ab">${letter}</span><span class="date">${dt}</span></button>`;
   }).join('');
-  const t = nav.querySelector('.day-btn.today'); if(t) t.scrollIntoView({inline:'center',block:'nearest'});
 }
 
 function render(){
@@ -529,10 +596,10 @@ function render(){
   const accentVar = day.rest ? '--rest' : C[day.key];
   view.style.setProperty('--accent', `var(${accentVar})`);
   if(day.rest){
-    view.innerHTML = `<div class="rest-card" style="--accent:var(--rest)">
+    view.innerHTML = `<div class="rest-card" style="--accent:var(--primary)">
       <div class="big">Día de descanso</div>
       <p>El músculo no crece en el gimnasio, crece mientras te recuperas. Hoy toca cargar baterías: duerme bien, mantén la proteína alta e hidrátate.</p>
-      <button class="rbtn" onclick="openPanel('nutri')">Ver alimentación y sueño</button>
+      <button class="rbtn" onclick="openPanel('progress')">Ver mi progreso</button>
     </div>`; return;
   }
   const exList = visibleEx(day);
@@ -569,6 +636,7 @@ function render(){
             <a class="acc-link" href="${yt}" target="_blank" rel="noopener"><span class="acc-ico">▶</span> Ver video</a>
           </div>
         </div>
+        ${exFig(e.m)}
       </div>
     </div>`;
   }).join('');
@@ -581,7 +649,13 @@ function render(){
       <button class="reset" onclick="resetDay()">Reiniciar</button></div>
       <div class="bar"><i id="pbar"></i></div></div>
     <div class="list">${list}</div>
-    <div class="volume" id="volume"></div>`;
+    <div class="volume" id="volume"></div>
+    <div class="session-note">
+      <h4><span class="acc-ico">📝</span> Feedback de la sesión</h4>
+      <textarea class="note-input" rows="2" data-k="snote"
+        placeholder="¿Cómo te sentiste hoy? Energía, dolores, PRs, qué subir la próxima…"
+        aria-label="Feedback de la sesión">${escapeHtml(sessionNote())}</textarea>
+    </div>`;
   view.querySelectorAll('.note-input').forEach(autoGrow);  // ajusta alto de las notas guardadas
   updateProgress();
   updateVolume();
@@ -684,6 +758,9 @@ function onFieldChange(e){
   } else if(k === 'note'){
     notes[key] = el.value;
     autoGrow(el);
+  } else if(k === 'snote'){
+    notes[sessKey()] = el.value;   // feedback general del día (no atado a un ejercicio)
+    autoGrow(el);
   }
   debouncedSave();   // Silent-Save: una sola escritura tras la ráfaga de cambios
 }
@@ -707,23 +784,30 @@ function onViewClick(e){
 /* ----------------------------------------------------------------
    7e. CRONÓMETRO DE DESCANSO  (toca "Descanso" para iniciarlo)
    ---------------------------------------------------------------- */
-let restTimerId = null, restLeft = 0;
+let restTimerId = null, restLeft = 0, restEndId = null, restHideId = null;
 function startRest(seconds){
   const bar = document.getElementById('restTimer');
   if(!bar) return;
+  // Cancela cualquier temporizador pendiente (evita que un descanso anterior
+  // oculte el nuevo a mitad de camino: ese era el bug del "reloj que no se va").
+  clearInterval(restTimerId); clearTimeout(restEndId); clearTimeout(restHideId);
   restLeft = seconds;
+  bar.classList.remove('done');
   bar.hidden = false;
+  void bar.offsetWidth;          // fuerza un reflow: fija el estado inicial oculto...
+  bar.classList.add('show');     // ...y ahora la transición de entrada arranca sí o sí
   paintRest();
-  clearInterval(restTimerId);
   restTimerId = setInterval(()=>{
     restLeft--;
-    paintRest();
     if(restLeft <= 0){
       clearInterval(restTimerId);
+      restLeft = 0; paintRest();                                 // muestra 00:00 un instante
       if(navigator.vibrate) navigator.vibrate([200,100,200]);   // aviso háptico en móvil
       bar.classList.add('done');
-      setTimeout(stopRest, 1500);
+      restEndId = setTimeout(stopRest, 900);   // al llegar a 00:00 se oculta AUTOMÁTICAMENTE
+      return;
     }
+    paintRest();
   }, 1000);
 }
 function paintRest(){
@@ -732,9 +816,12 @@ function paintRest(){
   if(t) t.textContent = `${mm}:${String(ss).padStart(2,'0')}`;
 }
 function stopRest(){
-  clearInterval(restTimerId);
+  clearInterval(restTimerId); clearTimeout(restEndId);
   const bar = document.getElementById('restTimer');
-  if(bar){ bar.hidden = true; bar.classList.remove('done'); }
+  if(!bar) return;
+  bar.classList.remove('show', 'done');            // se colapsa con la animación de salida
+  clearTimeout(restHideId);
+  restHideId = setTimeout(() => { bar.hidden = true; }, 300);   // oculta al terminar la transición
 }
 function addRest(sec){ restLeft = Math.max(0, restLeft + sec); paintRest(); }
 
@@ -833,7 +920,7 @@ function openPanel(id){
 }
 
 function closePanels(){
-  ['guide','nutri','progress','calendar'].forEach(id=>{
+  ['progress','calendar'].forEach(id=>{
     const p = document.getElementById(id);
     if(p) p.hidden = true;
   });
@@ -913,6 +1000,9 @@ function renderProgress(){
     return ex ? { label: ex.n, value: bests[k].w, valText: fmtKg(bests[k].w) + ' kg' } : null;
   }).filter(Boolean).sort((a, b) => b.value - a.value).slice(0, 8);
 
+  // --- Constancia (heatmap tipo GitHub): últimas 12 semanas por volumen ---
+  const heatHtml = consistencyHeatmap(weekNow);
+
   host.innerHTML = `
     <h3>Resumen de la semana</h3>
     <div class="stat-cards">
@@ -920,12 +1010,17 @@ function renderProgress(){
       <div class="scard k2"><b>${sessions}</b><span>sesiones</span></div>
       <div class="scard k3"><b>${recordCount}</b><span>récords</span></div>
     </div>
+    <h3>Volumen semanal</h3>
+    <div class="chart-card">
+      <div class="chart-cap"><b>${fmtKg(weekNow)}<span class="u">kg</span></b><span>esta semana</span></div>
+      ${trend.length > 1 ? svgArea(trend) : '<p style="margin:4px 2px"><small>Aún no hay semanas anteriores: esta gráfica de líneas crece cada lunes. 📈</small></p>'}
+    </div>
+    <h3>Constancia · últimas semanas</h3>
+    ${heatHtml}
     <h3>Volumen por día</h3>
-    ${svgBars(dias, 'volumen por día')}
+    <div class="chart-card">${svgBars(dias, 'volumen por día')}</div>
     <h3>Volumen por músculo</h3>
-    ${muscleRows.length ? hBars(muscleRows, '--pull') : '<p><small>Registra pesos para ver el reparto por músculo.</small></p>'}
-    <h3>Tendencia semanal</h3>
-    ${trend.length > 1 ? svgArea(trend) : '<p><small>Aún no hay semanas anteriores: esta gráfica crece cada lunes. 📈</small></p>'}
+    ${muscleRows.length ? hBars(muscleRows, '--primary') : '<p><small>Registra pesos para ver el reparto por músculo.</small></p>'}
     <h3>Tus récords (peso máximo)</h3>
     ${recRows.length ? hBars(recRows, '--legs') : '<p><small>Registra pesos y aquí verás tus máximos por ejercicio.</small></p>'}
     <h3>Tabla de datos</h3>
@@ -951,9 +1046,19 @@ function dismissBanner(){
    7c. MODO ESTUDIO 2.0  (cambia el SCHEMA a la rutina exprés)
    ---------------------------------------------------------------- */
 function toggleStudy(on){
-  studyMode = !!on;
+  studyMode = (on === undefined) ? !studyMode : !!on;   // sin argumento = alterna
+  syncExpressBtn();
   render();        // re-pinta el día con el schema exprés o el completo
   Store.save();
+}
+
+/** Refleja el estado del Modo Express en el botón grande del dock. */
+function syncExpressBtn(){
+  const btn = document.getElementById('expressBtn');
+  if(!btn) return;
+  btn.setAttribute('aria-pressed', studyMode ? 'true' : 'false');
+  const st = document.getElementById('expressState');
+  if(st) st.textContent = studyMode ? 'Activo · rutina exprés' : 'Rutina completa';
 }
 
 /* ----------------------------------------------------------------
@@ -961,7 +1066,7 @@ function toggleStudy(on){
    ------------------------------------------------------------
    Dos vías, ambas sin servidor:
    - Google Calendar: enlace "Añadir" con evento semanal pre-cargado.
-   - Apple/otros: descarga de un .ics estándar (se importa al calendario).
+   - Otros calendarios: descarga de un .ics estándar (se importa al calendario).
    ---------------------------------------------------------------- */
 const CAL_HOUR = 18;   // hora por defecto del entreno (18:00)
 
@@ -996,8 +1101,8 @@ function renderCalendar(){
     <p><small>Recordatorios <b>semanales</b> a las ${CAL_HOUR}:00. Toca un día y se abre Google
       Calendar con todo pre-cargado: solo pulsa <b>Guardar</b>.</small></p>
     <div class="cal-list">${links}</div>
-    <h3>¿iPhone u otro calendario?</h3>
-    <p><small>Descarga el archivo y ábrelo con tu app (Apple Calendar lo importa solo).</small></p>
+    <h3>¿Otro calendario?</h3>
+    <p><small>Descarga el archivo .ics y ábrelo con tu app (Samsung Calendar y Google Calendar lo importan solo).</small></p>
     <button class="pbtn" onclick="descargarICS()" style="margin-top:4px">📥 Descargar .ics</button>
     <button class="panel-close" onclick="closePanels()">Cerrar</button>`;
 }
@@ -1058,8 +1163,7 @@ function registerSW(){
    ---------------------------------------------------------------- */
 renderWeek();
 renderBanner();
-const _toggle = document.getElementById('studyToggle');
-if(_toggle) _toggle.checked = studyMode;   // refleja la preferencia guardada
+syncExpressBtn();                          // refleja la preferencia guardada en el botón Express
 bindObservers();                           // Observer registrado UNA sola vez
 renderDays();
 render();

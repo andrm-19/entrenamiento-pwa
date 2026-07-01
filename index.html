@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Entreno V</title>
 
-<!-- PWA Android / Chrome (sin Apple/iOS) -->
+<!-- PWA Android / Chrome -->
 <meta name="theme-color" content="#000000">
 <meta name="color-scheme" content="dark">
 <meta name="mobile-web-app-capable" content="yes">
@@ -15,7 +15,7 @@
 <link rel="manifest" href="manifest.json">
 
 <!-- Estilos externos (?v= fuerza recarga al cambiar de versión) -->
-<link rel="stylesheet" href="css/styles.css?v=7">
+<link rel="stylesheet" href="css/styles.css?v=9">
 </head>
 <body>
   <header>
@@ -23,52 +23,7 @@
     <div class="week" id="weeklabel"></div>
   </header>
 
-  <section class="panel" id="progress" hidden style="--p:var(--pull)"></section>
-
-  <section class="panel" id="guide" hidden style="--p:var(--push)">
-    <h3>Entrena por bloques (no igual para siempre)</h3>
-    <div class="blk"><b>Semanas 1–2 · Readaptación.</b> Cargas suaves, 2–3 RIR, volumen bajo (espalda ~12–14 series). Reconecta y cuida tendones.</div>
-    <div class="blk"><b>Semanas 3–7 · Progresión.</b> Sube carga/reps cada semana, 1–2 RIR. Espalda → ~16–18 series; hombro lateral → ~13–15.</div>
-    <div class="blk"><b>Semana 8 · Descarga.</b> ~50 % del volumen y cargas ligeras. Vuelves más fuerte.</div>
-    <div class="blk"><b>Semanas 9–14 · Nuevo bloque.</b> Cambia algunas variantes y ponte nuevas metas.</div>
-    <h3>Volumen objetivo (series / semana)</h3>
-    <table>
-      <tr><td>Espalda</td><td>14 → 18</td></tr>
-      <tr><td>Hombro lateral</td><td>12 → 15</td></tr>
-      <tr><td>Bíceps</td><td>12 – 14</td></tr>
-      <tr><td>Pecho</td><td>10 – 12</td></tr>
-      <tr><td>Tríceps</td><td>8 – 10</td></tr>
-      <tr><td>Cuádriceps</td><td>12 – 14</td></tr>
-      <tr><td>Femoral / glúteo</td><td>9 – 11</td></tr>
-      <tr><td>Gemelos</td><td>8 – 10</td></tr>
-    </table>
-    <p><small>Empieza por el número bajo y sube según te recuperes. Más volumen no siempre es mejor.</small></p>
-    <h3>Metas de fuerza</h3>
-    <p>Registra tus ejercicios ancla — <b>jalón al pecho, press inclinado, prensa</b> — y apunta a <b>batir el peso a ~10 reps</b> cada pocas semanas. Más fuerza en estos rangos = más músculo.</p>
-    <p><small>No persigas el 1RM: progresa dentro de 8–15 reps, es más seguro y mejor estímulo.</small></p>
-    <h3>Progresión: doble progresión</h3>
-    <p>Sube reps dentro del rango manteniendo técnica; cuando llegues al número alto en todas las series, sube el peso ~2,5–5 % y vuelve al número bajo.</p>
-    <button class="panel-close" onclick="closePanels()">Cerrar ✕</button>
-  </section>
-
-  <section class="panel" id="nutri" hidden style="--p:var(--legs)">
-    <h3>Proteína</h3>
-    <p><b>~1,6–2,2 g por kg de peso al día</b>, repartida en el día. Es el factor nº1 para construir y mantener músculo.</p>
-    <h3>Calorías y tu caso</h3>
-    <p>Como intermedio que regresa, puedes hacer <b>recomposición</b> comiendo alrededor de tu mantenimiento con proteína alta. Para marcar el abdomen más rápido, un <b>déficit leve</b>. La definición sale de bajar grasa, no de hacer más abdominales.</p>
-    <h3>Base de la dieta</h3>
-    <ul>
-      <li><b>Proteínas magras:</b> huevo, pollo, carne magra, pescado, lácteos, legumbres.</li>
-      <li><b>Carbohidratos</b> sobre todo de arroz, avena, papa, fruta, tubérculos.</li>
-      <li><b>Grasas saludables</b> y muchas verduras.</li>
-    </ul>
-    <h3>Sueño</h3>
-    <p><b>7–9 h.</b> El músculo crece descansando; dormir poco frena las ganancias y dispara el hambre.</p>
-    <h3>Hidratación y cardio</h3>
-    <p>Agua a lo largo del día. Cardio opcional: <b>2–3 caminatas en pendiente o trote suave</b> por semana; no interfiere si es moderado.</p>
-    <div class="note-soft">Sin tu peso esto va en rangos. Pésate para fijar números. Y si la comida o el peso te generan ansiedad o se vuelven rígidos, habla con un profesional (médico/nutricionista): el objetivo es un cuerpo sano y un proceso disfrutable.</div>
-    <button class="panel-close" onclick="closePanels()">Cerrar ✕</button>
-  </section>
+  <section class="panel" id="progress" hidden style="--p:var(--primary)"></section>
 
   <main id="view"></main>
 
@@ -82,14 +37,11 @@
   <div class="dock" id="dock">
     <nav class="days" id="days" aria-label="Seleccionar día"></nav>
     <div class="dock-actions">
-      <button class="dbtn" onclick="openPanel('progress')"><span class="dico">📈</span>Progreso</button>
-      <button class="dbtn" onclick="openPanel('guide')"><span class="dico">📋</span>Guía</button>
-      <button class="dbtn" onclick="openPanel('nutri')"><span class="dico">🍽️</span>Dieta</button>
-      <label class="study-switch dock-study" title="Modo estudio · rutina exprés">
-        <input type="checkbox" id="studyToggle" onchange="toggleStudy(this.checked)">
-        <span class="track"><span class="thumb"></span></span>
-        <span class="study-label">Exprés</span>
-      </label>
+      <button class="express-btn" id="expressBtn" type="button" onclick="toggleStudy()" aria-pressed="false">
+        <span class="ex-ico">⚡</span>
+        <span class="ex-txt">Modo Express<small id="expressState">Rutina completa</small></span>
+      </button>
+      <button class="dbtn" type="button" onclick="openPanel('progress')"><span class="dico">📊</span>Progreso</button>
     </div>
   </div>
 
@@ -105,21 +57,38 @@
   <!-- Capa de confeti para la celebración al completar el día -->
   <div id="confetti" class="confetti" hidden aria-hidden="true"></div>
 
-  <!-- Definiciones SVG compartidas: degradado y brillo de los músculos activos -->
+  <!-- Definiciones SVG compartidas: volumen y brillo de los músculos activos -->
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
     <defs>
+      <!-- Volumen del músculo activo: brillo arriba-izquierda -> sombra (look 3D) -->
+      <radialGradient id="mvol" cx="40%" cy="30%" r="78%">
+        <stop offset="0"   stop-color="currentColor" stop-opacity="1"/>
+        <stop offset="0.6" stop-color="currentColor" stop-opacity="0.78"/>
+        <stop offset="1"   stop-color="currentColor" stop-opacity="0.42"/>
+      </radialGradient>
+      <!-- Degradado lineal (fallback usado por algunos surcos/animaciones) -->
       <linearGradient id="mg" x1="0" y1="0" x2="0" y2="1">
         <stop offset="0"  stop-color="currentColor" stop-opacity="1"/>
         <stop offset="1"  stop-color="currentColor" stop-opacity="0.55"/>
       </linearGradient>
+      <!-- Cuerpo en reposo: leve volumen (iluminado desde arriba) -->
+      <radialGradient id="bodyGrad" cx="42%" cy="26%" r="85%">
+        <stop offset="0" stop-color="#ffffff" stop-opacity="0.10"/>
+        <stop offset="1" stop-color="#ffffff" stop-opacity="0.02"/>
+      </radialGradient>
       <linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1">
         <stop offset="0" stop-color="currentColor" stop-opacity="0.95"/>
-        <stop offset="1" stop-color="currentColor" stop-opacity="0.35"/>
+        <stop offset="1" stop-color="currentColor" stop-opacity="0.30"/>
+      </linearGradient>
+      <!-- Relleno de la gráfica de líneas (cian que se desvanece hacia abajo) -->
+      <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#22D3EE" stop-opacity="0.34"/>
+        <stop offset="1" stop-color="#22D3EE" stop-opacity="0"/>
       </linearGradient>
     </defs>
   </svg>
 
   <!-- Lógica externa. 'defer' garantiza que el DOM esté listo antes de ejecutar. -->
-  <script src="js/app.js?v=7" defer></script>
+  <script src="js/app.js?v=9" defer></script>
 </body>
 </html>

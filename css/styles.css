@@ -5,10 +5,13 @@
 
 :root{
   /* Negro AMOLED puro: apaga los píxeles del Super AMOLED (ahorra batería) */
-  --bg:#000000; --surface:#0D0D11; --surface-2:#16161C; --border:#26262F;
-  --text:#F4F4F2; --muted:#8E8E9B; --ghost:rgba(255,255,255,.05); --dim:#26262F;
+  --bg:#000000; --surface:#0D0E12; --surface-2:#15161C; --border:#24252E;
+  --text:#F5F6F8; --muted:#8A8C99; --ghost:rgba(255,255,255,.05); --dim:#25262F;
+  /* Cian premium (color primario de la UI: gráficas, Express, calendario) */
+  --primary:#22D3EE; --primary-2:#0E7C90;
+  /* Colores por grupo muscular (se conservan en los modelos anatómicos) */
   --pull:#2DA8F2; --push:#FF7A33; --legs:#A6E024; --upper:#B97BF6; --rest:#6B7280;
-  --accent:var(--pull); --pad:16px; --dock-h:142px;
+  --accent:var(--primary); --pad:16px; --dock-h:150px;
 }
 *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
 html,body{margin:0; padding:0;}
@@ -60,20 +63,24 @@ h1{margin:4px 0 2px; font-size:24px; font-weight:800; letter-spacing:-.01em;}
   background:var(--surface-2); border:1px solid var(--border); color:var(--text); font-weight:700; font-size:13px;
   padding:13px; border-radius:11px; cursor:pointer; transition:transform .1s;}
 .panel-close:active{transform:scale(.98);}
-/* day selector (vive dentro del dock inferior) */
-nav.days{display:flex; gap:6px; overflow-x:auto; scrollbar-width:none; padding:0 2px 8px;}
-nav.days::-webkit-scrollbar{display:none;}
-.day-btn{flex:1 0 auto; min-width:46px; min-height:58px; border-radius:12px;
-  background:var(--surface-2); border:1px solid var(--border); color:var(--muted);
-  cursor:pointer; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:1px;
-  position:relative; transition:transform .12s, background .2s, color .2s, border-color .2s;}
-.day-btn .ab{font-weight:800; font-size:12px; letter-spacing:.04em;}
-.day-btn .date{font-size:13px; font-weight:700; font-variant-numeric:tabular-nums; opacity:.7;}
-.day-btn .dot{width:5px; height:5px; border-radius:50%; background:transparent; margin-top:1px;}
-.day-btn.today .dot{background:var(--accent);}
-.day-btn.active{background:var(--accent); color:#0B0B0F; border-color:var(--accent);}
-.day-btn.active .date{opacity:1;} .day-btn.active.today .dot{background:#0B0B0F;}
-.day-btn:active{transform:scale(.94);}
+/* Mini-calendario: fila de círculos limpios (letra del día). Menos ruido: sin
+   bordes ni puntos en los días inactivos; el actual se rellena de cian. */
+nav.days{display:flex; gap:6px; justify-content:space-between; padding:2px 0 10px;}
+.day-btn{flex:1; min-width:0; border:0; background:none; color:var(--muted); cursor:pointer;
+  display:flex; flex-direction:column; align-items:center; gap:4px; padding:0;
+  transition:transform .12s, color .2s;}
+.day-btn .ab{width:34px; height:34px; border-radius:50%; display:grid; place-items:center;
+  font-weight:800; font-size:13px; background:var(--surface-2); border:1px solid transparent;
+  transition:background .2s, color .2s, border-color .2s, box-shadow .2s;}
+.day-btn .date{font-size:10px; font-weight:700; font-variant-numeric:tabular-nums; opacity:.5;}
+.day-btn .dot{display:none;}
+.day-btn.rest .ab{opacity:.5;}
+.day-btn.today .ab{border-color:color-mix(in srgb,var(--primary) 55%,transparent); color:var(--primary);}
+.day-btn.today .date{color:var(--primary); opacity:.9;}
+.day-btn.active .ab{background:var(--primary); color:#04121A; border-color:var(--primary);
+  box-shadow:0 0 0 4px color-mix(in srgb,var(--primary) 16%,transparent);}
+.day-btn.active .date{color:var(--text); opacity:1;}
+.day-btn:active{transform:scale(.9);}
 /* hero */
 main{padding:16px var(--pad) 0;}
 .hero{display:flex; gap:12px; align-items:center; margin-bottom:4px;}
@@ -96,12 +103,15 @@ main{padding:16px var(--pad) 0;}
 .fig small{font-size:8px; letter-spacing:.1em; color:var(--muted); margin-top:2px; text-transform:uppercase;}
 .mini{display:flex; gap:3px; flex-shrink:0; align-items:flex-start;}
 .mini svg{width:30px; height:auto; display:block;}
-.ghost{fill:var(--ghost);}
+.ghost{fill:url(#bodyGrad);}                     /* cuerpo con leve volumen (luz superior) */
 .muscle{fill:var(--dim); transition:fill .35s ease, filter .35s ease;}
-.muscle.on{color:var(--accent); fill:url(#mg);
-  stroke:color-mix(in srgb, var(--accent) 55%, white); stroke-width:.4;
-  filter:drop-shadow(0 0 3px color-mix(in srgb, var(--accent) 80%, transparent))
-         drop-shadow(0 0 6px color-mix(in srgb, var(--accent) 35%, transparent));}
+.muscle.on{color:var(--accent); fill:url(#mvol);  /* radial: brillo -> sombra = look 3D */
+  stroke:color-mix(in srgb, var(--accent) 60%, white); stroke-width:.5;
+  filter:drop-shadow(0 0 2.5px color-mix(in srgb, var(--accent) 85%, transparent))
+         drop-shadow(0 1px 5px color-mix(in srgb, var(--accent) 45%, transparent));}
+/* Surcos de definición muscular (6-pack, dorsal, columna, glúteo): tallan la
+   silueta con el negro del fondo para que se lea la separación entre vientres. */
+.sep{fill:none; stroke:var(--bg); stroke-width:1.2; stroke-linecap:round; opacity:.65;}
 /* progress */
 .progress{margin:15px 0 4px;}
 .progress .row{display:flex; justify-content:space-between; align-items:center; font-size:12px; color:var(--muted); margin-bottom:6px;}
@@ -151,19 +161,20 @@ footer p{margin:0 0 8px;} footer b{color:var(--text);}
    Añadidos: Modo Estudio · Registro de cargas · Volumen
    ============================================================ */
 
-/* Toggle "Modo estudio" (vive en el dock inferior) */
-.study-switch{display:inline-flex; align-items:center; gap:9px; cursor:pointer; user-select:none;}
-.dock-study{flex:1; min-width:56px; flex-direction:column; gap:4px; justify-content:center;
-  background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:8px 4px;}
-.dock-study .study-label{font-size:10px;}
-.study-switch input{position:absolute; opacity:0; width:0; height:0;}
-.study-switch .track{width:40px; height:23px; border-radius:999px; background:var(--surface-2); border:1px solid var(--border); position:relative; transition:background .2s, border-color .2s; flex-shrink:0;}
-.study-switch .thumb{position:absolute; top:2px; left:2px; width:17px; height:17px; border-radius:50%; background:var(--muted); transition:transform .2s, background .2s;}
-.study-switch input:checked + .track{background:color-mix(in srgb, var(--upper) 35%, transparent); border-color:var(--upper);}
-.study-switch input:checked + .track .thumb{transform:translateX(17px); background:var(--upper);}
-.study-switch input:focus-visible + .track{outline:2px solid var(--accent); outline-offset:2px;}
-.study-label{font-size:11.5px; font-weight:600; color:var(--muted);}
-.study-switch input:checked ~ .study-label{color:var(--text);}
+/* Botón grande "Modo Express" (vive en el dock; alterna la rutina exprés) */
+.express-btn{flex:2.2; min-width:0; display:flex; align-items:center; gap:10px; cursor:pointer;
+  padding:10px 13px; border-radius:14px; font-family:inherit; text-align:left;
+  background:var(--surface); border:1px solid var(--border); color:var(--text);
+  transition:transform .1s, background .2s, border-color .2s, box-shadow .2s;}
+.express-btn:active{transform:scale(.97);}
+.express-btn .ex-ico{font-size:20px; line-height:1; filter:grayscale(1); opacity:.55; transition:.2s;}
+.express-btn .ex-txt{display:flex; flex-direction:column; line-height:1.15; font-weight:800; font-size:13.5px;}
+.express-btn .ex-txt small{font-weight:600; font-size:10px; color:var(--muted); letter-spacing:.02em; margin-top:2px;}
+.express-btn[aria-pressed="true"]{background:color-mix(in srgb,var(--primary) 15%,var(--surface));
+  border-color:var(--primary); color:var(--primary);
+  box-shadow:0 0 0 1px color-mix(in srgb,var(--primary) 35%,transparent), 0 6px 20px color-mix(in srgb,var(--primary) 16%,transparent);}
+.express-btn[aria-pressed="true"] .ex-ico{filter:none; opacity:1;}
+.express-btn[aria-pressed="true"] .ex-txt small{color:color-mix(in srgb,var(--primary) 80%,white);}
 
 /* Registro de carga: peso (kg) y reps con steppers grandes */
 .log{display:flex; flex-wrap:wrap; gap:8px; margin-top:11px;}
@@ -213,10 +224,13 @@ footer p{margin:0 0 8px;} footer b{color:var(--text);}
 
 /* Cronómetro de descanso flotante */
 .rest-timer{position:fixed; left:50%; bottom:calc(var(--dock-h) + env(safe-area-inset-bottom) + 12px);
-  transform:translateX(-50%); z-index:50;
+  transform:translateX(-50%) translateY(16px); opacity:0; z-index:50;
+  transition:transform .28s cubic-bezier(.2,.8,.2,1), opacity .28s ease;
   display:flex; align-items:center; gap:10px; padding:10px 14px; border-radius:14px;
   background:var(--surface); border:1px solid var(--accent);
   box-shadow:0 8px 26px rgba(0,0,0,.6); max-width:92vw;}
+/* Estado visible: se despliega desde abajo con un fundido suave (One UI). */
+.rest-timer.show{transform:translateX(-50%) translateY(0); opacity:1;}
 .rest-timer .rest-ico{font-size:17px;}
 .rest-label{font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--muted);}
 .rest-time{font-size:22px; font-weight:800; font-variant-numeric:tabular-nums; min-width:62px; text-align:center;}
@@ -235,12 +249,25 @@ footer p{margin:0 0 8px;} footer b{color:var(--text);}
 .scard span{font-size:8.5px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:var(--muted);}
 .scard.k1 b{color:var(--pull);} .scard.k2 b{color:var(--legs);} .scard.k3 b{color:var(--upper);}
 
+/* Heatmap de constancia (estilo commits de GitHub): 1 casilla = 1 semana */
+.heat{display:flex; flex-wrap:wrap; gap:5px; margin:2px 0 8px;}
+.heat-cell{width:22px; height:22px; border-radius:6px; background:var(--surface-2);
+  border:1px solid var(--border); flex-shrink:0;}
+.heat-cell.l0{background:var(--surface-2);}
+.heat-cell.l1{background:color-mix(in srgb, var(--primary) 26%, var(--surface-2)); border-color:transparent;}
+.heat-cell.l2{background:color-mix(in srgb, var(--primary) 48%, var(--surface-2)); border-color:transparent;}
+.heat-cell.l3{background:color-mix(in srgb, var(--primary) 72%, var(--surface-2)); border-color:transparent;}
+.heat-cell.l4{background:var(--primary); border-color:transparent;}
+.heat-cell.now{outline:2px solid rgba(255,255,255,.85); outline-offset:1px;}
+.heat-legend{display:flex; align-items:center; gap:5px; margin:0 0 6px; font-size:10px; color:var(--muted);}
+.heat-legend .heat-cell{width:14px; height:14px; border-radius:4px;}
+
 /* Barras verticales (volumen por día) — crecen con transform (120Hz) */
 .chart{width:100%; height:auto; display:block; margin:2px 0 8px; overflow:visible;}
 .caxis{stroke:var(--border); stroke-width:1;}
-.cbar{color:var(--pull); fill:url(#barGrad); transform-box:fill-box; transform-origin:bottom;
+.cbar{color:var(--primary); fill:url(#barGrad); transform-box:fill-box; transform-origin:bottom;
   animation:barGrow .5s cubic-bezier(.2,.8,.2,1) both;}
-.cbar.hot{color:var(--legs);}
+.cbar.hot{color:color-mix(in srgb,var(--primary) 70%, white);}
 @keyframes barGrow{from{transform:scaleY(0);} to{transform:scaleY(1);}}
 .cval{fill:var(--text); font-size:9px; font-weight:700; font-variant-numeric:tabular-nums;}
 .clbl{fill:var(--muted); font-size:9px; font-weight:700; letter-spacing:.04em;}
@@ -255,10 +282,12 @@ footer p{margin:0 0 8px;} footer b{color:var(--text);}
 @keyframes hbarGrow{to{transform:scaleX(1);}}
 .hbar-val{width:60px; flex-shrink:0; text-align:right; font-weight:700; font-variant-numeric:tabular-nums; color:var(--text);}
 
-/* Área de tendencia semanal */
-.area-fill{fill:color-mix(in srgb,var(--pull) 22%,transparent);}
-.area-line{fill:none; stroke:var(--pull); stroke-width:2; stroke-linejoin:round; stroke-linecap:round;}
-.area-dot{fill:var(--pull);}
+/* Gráfica de líneas de tendencia semanal (estilo app financiera) */
+.area-grid{stroke:var(--border); stroke-width:1; stroke-dasharray:2 4; opacity:.6;}
+.area-fill{fill:url(#areaGrad);}
+.area-line{fill:none; stroke:var(--primary); stroke-width:2.2; stroke-linejoin:round; stroke-linecap:round;}
+.area-dot{fill:var(--bg); stroke:var(--primary); stroke-width:2;}
+.area-dot.last{fill:var(--primary);}
 
 /* === DOCK inferior: navegación y acciones al alcance del pulgar === */
 .dock{position:fixed; left:0; right:0; bottom:0; z-index:40; max-width:560px; margin:0 auto;
@@ -325,3 +354,43 @@ footer p{margin:0 0 8px;} footer b{color:var(--text);}
 .data-table td:nth-child(2){color:var(--text);}
 .data-table td:nth-child(3),.data-table td:nth-child(4){text-align:right; white-space:nowrap; color:var(--text);}
 .export-row{display:flex; gap:8px; margin:8px 0 2px;}
+
+/* ============================================================
+   Rediseño v2 — glow premium, figura por ejercicio, feedback de sesión
+   ============================================================ */
+
+/* Glow suave detrás de las figuras del hero (el modelo "flota", como el mockup) */
+.fig{position:relative;}
+.fig::before{content:""; position:absolute; inset:4px 6px 14px; border-radius:50%;
+  background:radial-gradient(ellipse at 50% 42%, color-mix(in srgb,var(--accent) 20%,transparent), transparent 70%);
+  filter:blur(7px); z-index:0;}
+.fig svg{position:relative; z-index:1;}
+
+/* Figura anatómica compacta a la derecha de cada tarjeta de ejercicio */
+.exfig{flex-shrink:0; display:flex; gap:1px; align-items:flex-start; position:relative;
+  padding:5px 7px 3px; border-radius:12px;
+  background:linear-gradient(180deg,var(--surface-2), color-mix(in srgb,var(--surface-2) 55%,var(--bg)));
+  border:1px solid var(--border);}
+.exfig svg{width:32px; height:auto; display:block; position:relative; z-index:1;}
+.exfig::before{content:""; position:absolute; inset:7px; border-radius:50%;
+  background:radial-gradient(ellipse at 50% 40%, color-mix(in srgb,var(--accent) 22%,transparent), transparent 66%);
+  filter:blur(5px);}
+
+/* Feedback / notas de la sesión (debajo del contenido del día) */
+.session-note{margin:16px 0 4px; background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:13px 14px;}
+.session-note h4{margin:0 0 9px; font-size:11px; letter-spacing:.12em; text-transform:uppercase;
+  color:var(--muted); font-weight:800; display:flex; align-items:center; gap:6px;}
+.session-note h4 .acc-ico{font-size:14px;}
+.session-note .note-input{background:var(--surface-2); min-height:46px;}
+
+/* Tarjeta contenedora de cada gráfica del panel de progreso (look financiero) */
+.chart-card{background:var(--surface-2); border:1px solid var(--border); border-radius:14px;
+  padding:12px 12px 8px; margin:2px 0 12px;}
+.chart-card .chart{margin:0;}
+.chart-cap{display:flex; justify-content:space-between; align-items:baseline; margin:0 2px 8px;}
+.chart-cap b{font-size:20px; font-weight:800; font-variant-numeric:tabular-nums; color:var(--text);}
+.chart-cap b .u{font-size:11px; font-weight:700; color:var(--muted); margin-left:3px;}
+.chart-cap span{font-size:10px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:var(--muted);}
+
+/* Ejes/etiquetas de la gráfica de líneas */
+.axis-lbl{fill:var(--muted); font-size:9px; font-weight:700; font-variant-numeric:tabular-nums;}

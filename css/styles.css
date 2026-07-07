@@ -490,6 +490,23 @@ footer p{margin:0 0 8px;} footer b{color:var(--text);}
 .chart-cap b .u{font-size:11px; font-weight:700; color:var(--muted); margin-left:3px;}
 .chart-cap span{font-size:10px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:var(--muted);}
 
+/* Selector de rango de la gráfica (Semana/Mes/Año) */
+.range-tabs{display:flex; gap:6px; margin:2px 0 10px;}
+.rtab{flex:1; background:var(--surface-2); border:1px solid var(--border); color:var(--muted);
+  font-family:inherit; font-weight:700; font-size:12px; padding:8px 6px; border-radius:10px; cursor:pointer;
+  transition:color .12s, border-color .12s, background .12s;}
+.rtab.on{color:var(--text); border-color:var(--accent); background:color-mix(in srgb,var(--accent) 12%,var(--surface-2));}
+.rtab:active{transform:scale(.97);}
+/* Comparativas de progreso "¿progresas?" */
+.cmp-grid{display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin:2px 0 12px;}
+.cmp{background:var(--surface-2); border:1px solid var(--border); border-radius:12px; padding:10px 8px; text-align:center;}
+.cmp-v{display:block; font-size:15px; font-weight:800; font-variant-numeric:tabular-nums; color:var(--muted);}
+.cmp-l{display:block; font-size:9.5px; font-weight:600; color:var(--muted); margin-top:3px; line-height:1.25;}
+.cmp.up{border-color:color-mix(in srgb,var(--legs) 32%,transparent); background:color-mix(in srgb,var(--legs) 10%,var(--surface-2));}
+.cmp.up .cmp-v{color:var(--legs);}
+.cmp.down{border-color:color-mix(in srgb,#ff6b6b 30%,transparent); background:color-mix(in srgb,#ff6b6b 9%,var(--surface-2));}
+.cmp.down .cmp-v{color:#ff6b6b;}
+
 /* Ejes/etiquetas de la gráfica de líneas */
 .axis-lbl{fill:var(--muted); font-size:9px; font-weight:700; font-variant-numeric:tabular-nums;}
 

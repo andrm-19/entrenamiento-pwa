@@ -577,6 +577,28 @@ function weeklyVolumes(){
   for(const wk in legacyHistory){ if(!(wk in byWeek)) byWeek[wk] = legacyHistory[wk].volume || 0; }
   return Object.keys(byWeek).sort().map(wk => ({ weekId:wk, volume:Math.round(byWeek[wk]) }));
 }
+/** Volumen por mes ("YYYY-MM") a partir del histórico. Ascendente. */
+function monthlyVolumes(){
+  const by = {};
+  for(const date in sessions){ const m = date.slice(0,7); by[m] = (by[m]||0) + sessionVolume(sessions[date]); }
+  return Object.keys(by).sort().map(m => ({ key:m, volume:Math.round(by[m]) }));
+}
+/** Volumen por año ("YYYY") a partir del histórico. Ascendente. */
+function yearlyVolumes(){
+  const by = {};
+  for(const date in sessions){ const y = date.slice(0,4); by[y] = (by[y]||0) + sessionVolume(sessions[date]); }
+  return Object.keys(by).sort().map(y => ({ key:y, volume:Math.round(by[y]) }));
+}
+/** Comparativas de progreso (spec §74): semana actual vs 1/4/12 semanas atrás (%). */
+function progressionComparison(){
+  const curWk = weekId(), weekNow = weekVolume();
+  const prev = weeklyVolumes().filter(w => w.weekId < curWk);
+  const ago = n => (prev.length >= n ? prev[prev.length - n].volume : null);
+  // Sin volumen esta semana todavía (semana recién empezada) no comparamos: evita el
+  // engañoso "-100%" antes de entrenar. En cuanto registras algo, muestra el % real.
+  const pct = base => (weekNow > 0 && base && base > 0) ? Math.round((weekNow - base) / base * 100) : null;
+  return { weekNow, vsLast:pct(ago(1)), vs4:pct(ago(4)), vs12:pct(ago(12)) };
+}
 /** Historial de un ejercicio (dia+id) en el tiempo: [{date, w, reps}] ascendente. */
 function exerciseHistory(dayType, slug){
   const out = [];
@@ -2083,6 +2105,33 @@ function weeklyMetrics(){
   return { effSets, avgRir: rirN ? rirSum / rirN : null, exercises: exSet.size };
 }
 
+/* --- Gráficas de progreso · rango temporal (spec §73/§74/§84) --- */
+let progressRange = 'week';
+function setProgressRange(r){ progressRange = r; renderProgress(); }
+/** Serie de puntos para la curva de tendencia según el rango elegido. */
+function trendData(){
+  if(progressRange === 'month') return monthlyVolumes().slice(-12).map(m => ({ label:m.key.slice(5), value:m.volume }));
+  if(progressRange === 'year')  return yearlyVolumes().slice(-8).map(y => ({ label:y.key, value:y.volume }));
+  const curWk = weekId();
+  const t = weeklyVolumes().filter(w => w.weekId < curWk).map(w => ({ label:w.weekId.slice(5).replace('-','/'), value:w.volume }));
+  t.push({ label:'ahora', value:weekVolume() });
+  return t.slice(-14);
+}
+/** Volumen y etiqueta del periodo actual para el encabezado de la gráfica. */
+function currentPeriodStat(){
+  const d = ymd(now);
+  if(progressRange === 'month') return { v:(monthlyVolumes().find(m => m.key === d.slice(0,7)) || {}).volume || 0, lbl:'este mes' };
+  if(progressRange === 'year')  return { v:(yearlyVolumes().find(y => y.key === d.slice(0,4)) || {}).volume || 0, lbl:'este año' };
+  return { v:weekVolume(), lbl:'esta semana' };
+}
+/** Bloque de comparativas de progreso (spec §74): responde "¿estás progresando?". */
+function progressComparisonHtml(){
+  const c = progressionComparison();
+  const pill = (lbl, pct) => `<div class="cmp ${pct==null?'':pct>=0?'up':'down'}">
+    <span class="cmp-v">${pct==null ? '—' : (pct>=0?'▲ +':'▼ ')+pct+'%'}</span><span class="cmp-l">${lbl}</span></div>`;
+  return `<div class="cmp-grid">${pill('vs. semana pasada', c.vsLast)}${pill('vs. hace 4 sem', c.vs4)}${pill('vs. hace 3 meses', c.vs12)}</div>`;
+}
+
 /** Récords históricos globales (spec §28/§76): calculados del historial completo.
     1RM máx, reps máx, volumen de sesión máx, mejor semana, mejor mes y racha máxima. */
 function globalRecords(){
@@ -2146,11 +2195,9 @@ function renderProgress(){
     .map(k => ({ label: MUSCLE_LABEL[k] || k, value: mv[k], valText: fmtKg(mv[k]) }))
     .sort((a, b) => b.value - a.value).slice(0, 8);
 
-  // --- Tendencia (semanas del histórico + resúmenes v1 + ahora) ---
-  const curWk = weekId();
-  const trend = weeklyVolumes().filter(w => w.weekId < curWk)
-    .map(w => ({ label: w.weekId.slice(5).replace('-', '/'), value: w.volume }));
-  trend.push({ label: 'ahora', value: weekNow });
+  // --- Tendencia según rango (semana/mes/año) + periodo actual ---
+  const td = trendData();
+  const cps = currentPeriodStat();
 
   // --- Récords (barras horizontales) ---
   const recRows = Object.keys(bests).map(k => {
@@ -2173,13 +2220,19 @@ function renderProgress(){
     </div>
     <div class="insights">${insights.map(t => `<div class="insight">${t}</div>`).join('')}</div>
     <div class="metrics">${metricsLine}</div>
+    <h3>Tu progreso 📈</h3>
+    ${progressComparisonHtml()}
+    <div class="range-tabs" role="group" aria-label="Rango temporal de la gráfica">
+      <button class="rtab ${progressRange==='week'?'on':''}" type="button" onclick="setProgressRange('week')">Semana</button>
+      <button class="rtab ${progressRange==='month'?'on':''}" type="button" onclick="setProgressRange('month')">Mes</button>
+      <button class="rtab ${progressRange==='year'?'on':''}" type="button" onclick="setProgressRange('year')">Año</button>
+    </div>
+    <div class="chart-card">
+      <div class="chart-cap"><b>${fmtKg(cps.v)}<span class="u">kg</span></b><span>${cps.lbl}</span></div>
+      ${td.length > 1 ? svgArea(td) : '<p style="margin:4px 2px"><small>Aún no hay suficiente historial para esta vista: la curva crece con cada sesión. 📈</small></p>'}
+    </div>
     <h3>Progreso por ejercicio</h3>
     ${progressByExerciseHtml()}
-    <h3>Volumen semanal</h3>
-    <div class="chart-card">
-      <div class="chart-cap"><b>${fmtKg(weekNow)}<span class="u">kg</span></b><span>esta semana</span></div>
-      ${trend.length > 1 ? svgArea(trend) : '<p style="margin:4px 2px"><small>Aún no hay semanas anteriores: esta gráfica de líneas crece cada lunes. 📈</small></p>'}
-    </div>
     <h3>Constancia · últimas semanas</h3>
     ${heatHtml}
     <h3>Logros</h3>

@@ -30,6 +30,12 @@
   --dock-bg:rgba(244,245,247,.92);
 }
 *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+/* El atributo [hidden] SIEMPRE debe ocultar, aunque una regla de clase fije
+   display (p. ej. .dialog-back{display:grid} o .rest-timer{display:flex}).
+   Sin este guard, esas capas fijas a pantalla completa (z-index alto) quedan
+   por encima de todo interceptando TODOS los toques -> "ningún botón funciona".
+   Las capas se muestran quitando el atributo (elemento.hidden=false). */
+[hidden]{display:none !important;}
 html,body{margin:0; padding:0;}
 body{
   background:var(--bg); color:var(--text);

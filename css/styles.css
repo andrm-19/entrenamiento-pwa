@@ -588,6 +588,17 @@ footer p{margin:0 0 8px;} footer b{color:var(--text);}
 .lasttime b{color:var(--text); font-variant-numeric:tabular-nums;}
 .lasttime::before{content:"↩"; opacity:.7;}
 
+/* Recomendación de sobrecarga progresiva (spec §58/§59) */
+.prog-hint{margin:6px 0 2px; font-size:12px; line-height:1.4; color:var(--muted);
+  padding:8px 11px; border-radius:10px; background:var(--surface-2); border:1px solid var(--border);}
+.prog-hint b{color:var(--text); font-variant-numeric:tabular-nums;}
+.prog-hint.up{color:var(--legs); background:color-mix(in srgb,var(--legs) 12%,var(--surface));
+  border-color:color-mix(in srgb,var(--legs) 32%,transparent);}
+.prog-hint.up b{color:var(--legs);}
+.prog-hint.warn{color:#F4B73E; background:color-mix(in srgb,#F4B73E 12%,var(--surface));
+  border-color:color-mix(in srgb,#F4B73E 30%,transparent);}
+.prog-hint.warn b{color:#F4B73E;}
+
 /* Métricas clave de la semana (dashboard) */
 .metrics{display:flex; flex-wrap:wrap; gap:6px 14px; margin:2px 2px 12px; font-size:12px; color:var(--muted);}
 .metrics b{color:var(--text); font-variant-numeric:tabular-nums;}

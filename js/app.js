@@ -706,6 +706,8 @@ function weekVolume(map){
 
 /** Formatea kg con separador de miles en español. */
 function fmtKg(n){ return Math.round(n).toLocaleString('es-ES'); }
+/** Formatea un peso conservando el medio kilo (72,5) — para pesos individuales, no volumen. */
+function fmtWeight(n){ return (+n || 0).toLocaleString('es-ES', { maximumFractionDigits:1 }); }
 
 /** Retrasa la ejecución: agrupa ráfagas de cambios en una sola escritura. */
 function debounce(fn, ms){ let t; return (...a)=>{ clearTimeout(t); t = setTimeout(()=>fn(...a), ms); }; }
@@ -1006,6 +1008,7 @@ function render(){
             <button class="stat stat-rest" type="button" data-rest="${parseRestSeconds(e.d)}" aria-label="Descanso ${e.d}">⏱ ${e.d}</button>
           </div>
           ${lastTimeHint(i, e)}
+          ${progressionHint(i, e)}
           ${logRow(i)}
           ${bestRow(i, e)}
           ${oneRmRow(i)}
@@ -1063,6 +1066,68 @@ function lastTimeHint(i, e){
   if(!prior.length) return '';
   const ref = prior[prior.length - 1];
   return `<div class="lasttime">Última vez <b>${fmtKg(ref.w)} kg × ${ref.reps || '—'}</b> <span>· ${ref.date.slice(5).replace('-', '/')}</span></div>`;
+}
+
+/* ----------------------------------------------------------------
+   MOTOR · SOBRECARGA PROGRESIVA (spec §58) y ESTANCAMIENTO (§59)
+   ------------------------------------------------------------
+   Lee la última sesión del mismo ejercicio y SUGIERE (nunca cambia
+   automáticamente, spec §58) subir carga cuando hubo margen: RIR alto o
+   reps al tope del rango. Detecta estancamiento si el peso no sube en
+   varias sesiones. Solo lectura sobre el historial ya guardado.
+   ---------------------------------------------------------------- */
+/** Rango de reps objetivo del plan: "8–12" -> {min:8, max:12}; "10" -> {10,10}. */
+function parseRepsRange(txt){
+  const nums = String(txt).match(/\d+/g);
+  if(!nums) return { min:0, max:0 };
+  return { min:+nums[0], max:+(nums[1] || nums[0]) };
+}
+/** Mejor serie efectiva de la sesión MÁS RECIENTE anterior a excludeDate, con RIR.
+    Devuelve {w, reps, rir, date} o null. */
+function lastSessionTopSet(dayType, slug, excludeDate){
+  let best = null, bestDate = '';
+  for(const date in sessions){
+    if(date === excludeDate) continue;
+    const s = sessions[date]; if(s.dayType !== dayType) continue;
+    ['full','express'].forEach(mode => {
+      const cell = s[mode] && s[mode].ex && s[mode].ex[slug];
+      const t = topSet(cell && cell.sets);
+      if(t && date > bestDate){ best = t; bestDate = date; }
+    });
+  }
+  return best ? { w:best.w||0, reps:best.reps||0, rir:(best.rir===0||best.rir)?+best.rir:null, date:bestDate } : null;
+}
+/** Nº de sesiones previas (desde la última) sin aumentar el peso tope. >=2 = estancado. */
+function stagnationCount(dayType, slug, excludeDate){
+  const hist = exerciseHistory(dayType, slug).filter(h => h.date !== excludeDate);
+  if(hist.length < 2) return 0;
+  const last = hist[hist.length - 1].w;
+  let n = 0;
+  for(let k = hist.length - 2; k >= 0; k--){ if(hist[k].w >= last) n++; else break; }
+  return n;
+}
+/** Sugerencia de sobrecarga progresiva para un ejercicio (o null si no hay datos). */
+function progressionSuggest(e){
+  if(!e || !e.id) return null;
+  const today = dateOfDay(current);
+  const last = lastSessionTopSet(current, e.id, today);
+  if(!last || !last.w) return null;
+  const { max } = parseRepsRange(e.r);
+  const rir = last.rir;
+  const ref = `${fmtWeight(last.w)} kg × ${last.reps}${rir != null ? ` · RIR ${rir}` : ''}`;
+  const up = +(last.w + WEIGHT_STEP).toFixed(2);
+  if(stagnationCount(current, e.id, today) >= 2){
+    return { cls:'warn', html:`⚠️ Estancado (${ref}). Prueba cambiar el rango de reps, sumar descanso o una semana de descarga.` };
+  }
+  const hasHeadroom = (rir != null && rir >= 2) || (max && last.reps >= max);
+  if(hasHeadroom) return { cls:'up',  html:`💡 La última vez ${ref} con margen → prueba <b>${fmtWeight(up)} kg</b>.` };
+  if(rir != null && rir <= 1) return { cls:'', html:`Mantén <b>${fmtWeight(last.w)} kg</b> y busca más repeticiones antes de subir.` };
+  return { cls:'', html:`Repite <b>${fmtWeight(last.w)} kg</b> e intenta sumar 1–2 reps.` };
+}
+/** Línea de recomendación de sobrecarga bajo el ejercicio (spec §58). */
+function progressionHint(i, e){
+  const s = progressionSuggest(e);
+  return s ? `<div class="prog-hint ${s.cls}">${s.html}</div>` : '';
 }
 
 function logRow(i){

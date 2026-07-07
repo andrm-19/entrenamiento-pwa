@@ -6,15 +6,16 @@ todo en tu propio dispositivo (`localStorage`) — sin servidores ni cuentas.
 
 ## Características
 
-- 🗓️ **Rutina semanal** con date-strip dinámico (resalta el día de hoy).
+- 🗓️ **Rutina semanal** con tira de días arriba (resalta hoy) y barra de pestañas abajo.
 - 💪 **Mapas musculares** por ejercicio (qué músculos trabajas, con degradado y brillo).
-- ✅ **Auto-guardado silencioso** de checks, pesos, reps y notas (sin botón de "guardar").
-- 🏋️ **Seguimiento de cargas** con volumen total levantado.
-- 🏆 **Récords por ejercicio** para medir la sobrecarga progresiva.
-- 📈 **Panel de progreso** con gráficas de volumen y tendencia semanal.
-- ⏱️ **Cronómetro de descanso** entre series (con aviso háptico).
-- 🎓 **Modo estudio** que cambia a una rutina exprés de alta intensidad.
-- 📅 **Exportar a calendario** (.ics) los días de entrenamiento.
+- 🔢 **Series reales** con peso, reps, **RIR** y tipo de serie; **volumen real** y **1RM estimado**.
+- ✅ **Auto-guardado silencioso** de series y notas (sin botón de "guardar").
+- 🏋️ **Sesión con inicio/fin**, resumen del entreno y recuperación de entrenos sin finalizar.
+- 🏆 **Récords** por ejercicio y curva de progreso.
+- 📊 **Panel de progreso**: volumen, tendencia, frecuencia muscular, insights y logros.
+- ⏱️ **Cronómetro de descanso** (con aviso háptico) y descanso por defecto configurable.
+- 🌙 **Tema claro/oscuro** y **respaldo/restauración** (JSON) + exportar CSV.
+- ⚡ **Modo Express** (rutina exprés de alta intensidad).
 - 📲 **Instalable** como app y **offline-first** (Service Worker).
 
 ## Estructura
@@ -41,5 +42,5 @@ todo en tu propio dispositivo (`localStorage`) — sin servidores ni cuentas.
 
 ## Datos y privacidad
 
-Todo se guarda **solo en tu navegador**. Si borras los datos del sitio, se pierden
-(más adelante se puede añadir exportar/importar respaldo).
+Todo se guarda **solo en tu navegador** (`localStorage`). Haz un **Respaldo** (JSON)
+desde Ajustes para no perder nada si borras los datos del sitio o cambias de móvil.

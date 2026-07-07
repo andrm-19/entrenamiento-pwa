@@ -15,19 +15,29 @@
 <link rel="manifest" href="manifest.json">
 
 <!-- Estilos externos (?v= fuerza recarga al cambiar de versión) -->
-<link rel="stylesheet" href="css/styles.css?v=20">
+<link rel="stylesheet" href="css/styles.css?v=21">
 </head>
 <body>
-  <header>
-    <button class="gear" type="button" onclick="openPanel('settings')" aria-label="Configuración">⚙</button>
-    <h1>Entreno V</h1>
-    <div class="week" id="weeklabel"></div>
+  <header class="appbar">
+    <div class="appbar-in">
+      <div class="brand"><span class="brand-mark">◆</span> Entreno V</div>
+      <div class="week" id="weeklabel"></div>
+    </div>
+    <nav class="daystrip" id="days" aria-label="Seleccionar día"></nav>
   </header>
 
-  <section class="panel" id="progress" hidden style="--p:var(--primary)"></section>
-  <section class="panel" id="calendar" hidden style="--p:var(--primary)"></section>
-  <section class="panel" id="summary" hidden style="--p:var(--primary)"></section>
-  <section class="panel" id="settings" hidden style="--p:var(--primary)"></section>
+  <section class="panel sheet" id="progress" hidden>
+    <div class="sheet-bar"><h2 class="sheet-title">Progreso</h2><button class="icon-btn" type="button" onclick="closePanels()" aria-label="Cerrar">✕</button></div>
+    <div class="panel-body" id="progress-body"></div>
+  </section>
+  <section class="panel sheet" id="summary" hidden>
+    <div class="sheet-bar"><h2 class="sheet-title">Resumen</h2><button class="icon-btn" type="button" onclick="closePanels()" aria-label="Cerrar">✕</button></div>
+    <div class="panel-body" id="summary-body"></div>
+  </section>
+  <section class="panel sheet" id="settings" hidden>
+    <div class="sheet-bar"><h2 class="sheet-title">Ajustes</h2><button class="icon-btn" type="button" onclick="closePanels()" aria-label="Cerrar">✕</button></div>
+    <div class="panel-body" id="settings-body"></div>
+  </section>
 
   <main id="view"></main>
 
@@ -37,18 +47,12 @@
     <p>Si sientes dolor articular agudo (no la molestia normal del esfuerzo), para ese ejercicio y consulta.</p>
   </footer>
 
-  <!-- DOCK INFERIOR: navegación y acciones al alcance del pulgar (una mano) -->
-  <div class="dock" id="dock">
-    <nav class="days" id="days" aria-label="Seleccionar día"></nav>
-    <div class="dock-actions">
-      <button class="express-btn" id="expressBtn" type="button" onclick="toggleStudy()" aria-pressed="false">
-        <span class="ex-ico">⚡</span>
-        <span class="ex-txt">Modo Express<small id="expressState">Rutina completa</small></span>
-      </button>
-      <button class="dbtn" type="button" onclick="openPanel('progress')"><span class="dico">📊</span>Progreso</button>
-      <button class="dbtn" type="button" onclick="openPanel('calendar')"><span class="dico">📅</span>Calendario</button>
-    </div>
-  </div>
+  <!-- BARRA INFERIOR: navegación principal (pulgar, una mano) -->
+  <nav class="tabbar" aria-label="Navegación principal">
+    <button class="tab is-active" data-tab="train" type="button" onclick="showTrain()"><span class="tab-ico">🏋️</span><span class="tab-lbl">Entrenar</span></button>
+    <button class="tab" data-tab="progress" type="button" onclick="openPanel('progress')"><span class="tab-ico">📊</span><span class="tab-lbl">Progreso</span></button>
+    <button class="tab" data-tab="settings" type="button" onclick="openPanel('settings')"><span class="tab-ico">⚙️</span><span class="tab-lbl">Ajustes</span></button>
+  </nav>
 
   <!-- Cronómetro de descanso (flotante, oculto hasta marcar un ejercicio) -->
   <div id="restTimer" class="rest-timer" hidden role="status" aria-live="polite">
@@ -61,6 +65,19 @@
 
   <!-- Capa de confeti para la celebración al completar el día -->
   <div id="confetti" class="confetti" hidden aria-hidden="true"></div>
+
+  <!-- Toast de feedback (éxito/error) y diálogo de confirmación -->
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+  <div id="dialog" class="dialog-back" hidden role="dialog" aria-modal="true">
+    <div class="dialog">
+      <div class="dialog-title" id="dialog-title"></div>
+      <div class="dialog-msg" id="dialog-msg"></div>
+      <div class="dialog-actions">
+        <button class="btn btn-ghost" type="button" id="dialog-cancel">Cancelar</button>
+        <button class="btn btn-primary" type="button" id="dialog-ok">Aceptar</button>
+      </div>
+    </div>
+  </div>
 
   <!-- Definiciones SVG compartidas: volumen y brillo de los músculos activos -->
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -94,6 +111,6 @@
   </svg>
 
   <!-- Lógica externa. 'defer' garantiza que el DOM esté listo antes de ejecutar. -->
-  <script src="js/app.js?v=20" defer></script>
+  <script src="js/app.js?v=21" defer></script>
 </body>
 </html>

@@ -868,17 +868,25 @@ function render(){
       </div>
     </div>`;
   }).join('');
-  view.innerHTML = `<div class="hero"><div class="hero-text">
-      <div class="chev"><span></span><span></span><span></span></div>
-      <div class="type">${day.type}</div>
-      <div class="sub">${day.label} ${dateForDow(current).getDate()} ${MES[dateForDow(current).getMonth()]} · ${day.sub}</div>
-    </div>${heroMap(day.muscles)}</div>
-    <div class="progress"><div class="row"><span>Progreso de hoy &nbsp; <b id="pcount">0</b> / ${total}</span>
-      <button class="reset" onclick="resetDay()">Reiniciar</button></div>
-      <div class="bar"><i id="pbar"></i></div></div>
+  view.innerHTML = `<section class="dayhead">
+      <div class="dayhead-main">
+        <div class="daytype">${day.type}</div>
+        <div class="daysub">${day.label} ${dateForDow(current).getDate()} ${MES[dateForDow(current).getMonth()]} · ${day.sub}</div>
+        <div class="modeswitch" role="group" aria-label="Modo de rutina">
+          <button class="mode-btn ${studyMode ? '' : 'on'}" type="button" onclick="toggleStudy(false)">Completa</button>
+          <button class="mode-btn ${studyMode ? 'on' : ''}" type="button" onclick="toggleStudy(true)">⚡ Express</button>
+        </div>
+      </div>
+      ${heroMap(day.muscles)}
+    </section>
+    <div class="dayprog">
+      <div class="dayprog-top"><span><b id="pcount">0</b> / ${total} ejercicios</span>
+        <button class="btn-ghost" type="button" onclick="resetDay()">Reiniciar</button></div>
+      <div class="pbar"><i id="pbar"></i></div>
+    </div>
     <div class="list">${list}</div>
     <div class="volume" id="volume"></div>
-    <button class="finish-btn" onclick="finishCurrentSession()">✅ Finalizar entrenamiento</button>
+    <button class="finish-btn" type="button" onclick="finishCurrentSession()">Finalizar entrenamiento</button>
     <div class="session-note">
       <h4><span class="acc-ico">📝</span> Feedback de la sesión</h4>
       <textarea class="note-input" rows="2" data-k="snote"
@@ -1283,7 +1291,7 @@ function finishCurrentSession(){
 }
 /** Resumen final del entreno (spec §43/§163). */
 function renderSummary(d, snap){
-  const host = document.getElementById('summary'); if(!host) return;
+  const host = document.getElementById('summary-body'); if(!host) return;
   const day = SCHEDULE[d] || {};
   const curWk = weekId();
   const prev = weeklyVolumes().filter(w => w.weekId < curWk).slice(-1)[0];
@@ -1390,17 +1398,57 @@ function select(d){
 function openPanel(id){
   closePanels();
   if(id === 'progress') renderProgress();   // genera las gráficas al abrir
-  if(id === 'calendar') renderCalendar();   // genera los enlaces de recordatorio
   if(id === 'settings') renderSettings();   // genera el panel de ajustes
   const p = document.getElementById(id);
+  if(!p) return;
   p.hidden = false;
-  p.scrollIntoView({behavior:'smooth',block:'start'});
+  const body = document.getElementById(id + '-body'); if(body) body.scrollTop = 0;
+  setActiveTab(id);
 }
 
 function closePanels(){
-  ['progress','calendar','summary','settings'].forEach(id=>{
+  ['progress','summary','settings'].forEach(id=>{
     const p = document.getElementById(id);
     if(p) p.hidden = true;
+  });
+  setActiveTab('train');
+}
+
+/** Resalta la pestaña activa de la barra inferior. */
+function setActiveTab(id){
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('is-active', t.dataset.tab === id));
+}
+/** Vuelve a la vista de entrenamiento (cierra cualquier hoja abierta). */
+function showTrain(){ closePanels(); }
+
+/* --- Feedback moderno: toasts y diálogo de confirmación (sustituyen alert/confirm) --- */
+let toastTimer = null;
+function showToast(msg, type){
+  const t = document.getElementById('toast'); if(!t) return;
+  t.textContent = msg;
+  t.className = 'toast' + (type ? ' ' + type : '');
+  t.hidden = false;
+  void t.offsetWidth;                          // reinicia la animación de entrada
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { t.classList.remove('show'); setTimeout(() => { t.hidden = true; }, 260); }, 2600);
+}
+function confirmDialog(title, msg, okLabel){
+  return new Promise(resolve => {
+    const back = document.getElementById('dialog');
+    if(!back){ resolve(window.confirm(msg)); return; }
+    document.getElementById('dialog-title').textContent = title || '';
+    document.getElementById('dialog-msg').textContent = msg || '';
+    const ok = document.getElementById('dialog-ok'), cancel = document.getElementById('dialog-cancel');
+    ok.textContent = okLabel || 'Aceptar';
+    back.hidden = false; void back.offsetWidth; back.classList.add('show');
+    const close = (val) => {
+      back.classList.remove('show'); setTimeout(() => { back.hidden = true; }, 200);
+      ok.onclick = cancel.onclick = back.onclick = null; resolve(val);
+    };
+    ok.onclick = () => close(true);
+    cancel.onclick = () => close(false);
+    back.onclick = (e) => { if(e.target === back) close(false); };
   });
 }
 
@@ -1421,7 +1469,7 @@ function setRestDefault(s){ restDefault = +s || 0; syncSettings(); Store.save();
 function syncSettings(){ const p = document.getElementById('settings'); if(p && !p.hidden) renderSettings(); }
 /** Panel de configuración (spec §47/§100/§108). */
 function renderSettings(){
-  const host = document.getElementById('settings'); if(!host) return;
+  const host = document.getElementById('settings-body'); if(!host) return;
   const presets = [0, 30, 60, 90, 120, 180];
   host.innerHTML = `
     <h3>Apariencia</h3>
@@ -1484,11 +1532,13 @@ function exportCSV(){
   weeklyVolumes().filter(w => w.weekId < curWk).forEach(w => lines.push([w.weekId, w.volume].join(',')));
   lines.push([curWk + ' (actual)', weekVolume()].join(','));
   download('﻿' + lines.join('\r\n'), 'entreno-v-estadisticas.csv', 'text/csv;charset=utf-8');
+  showToast('CSV descargado ✓', 'success');
 }
 
 /** Exporta un respaldo JSON completo (para no perder nada / cambiar de móvil). */
 function exportJSON(){
   download(DB.read(Store.KEY) || '{}', 'entreno-v-respaldo.json', 'application/json');
+  showToast('Respaldo descargado ✓', 'success');
 }
 
 /**
@@ -1507,16 +1557,18 @@ function importJSON(){
     const file = input.files && input.files[0];
     if(!file) return;
     const reader = new FileReader();
-    reader.onerror = () => alert('No pude leer el archivo. Inténtalo de nuevo.');
-    reader.onload = () => {
+    reader.onerror = () => showToast('No pude leer el archivo. Inténtalo de nuevo.', 'error');
+    reader.onload = async () => {
       let data;
       try{ data = JSON.parse(reader.result); }
-      catch(_){ alert('Ese archivo no es un respaldo válido (no es un .json legible).'); return; }
+      catch(_){ showToast('Ese archivo no es un respaldo válido (.json ilegible).', 'error'); return; }
       if(!isValidBackup(data)){
-        alert('Ese archivo no parece un respaldo de Entreno V.\nUsa el .json que descargaste con el botón "Respaldo".');
+        showToast('Ese archivo no parece un respaldo de Entreno V.', 'error');
         return;
       }
-      if(!confirm('Esto REEMPLAZA tus datos actuales por los del respaldo.\n¿Quieres continuar?')) return;
+      const go = await confirmDialog('Restaurar respaldo',
+        'Esto reemplazará tus datos actuales por los del respaldo. ¿Quieres continuar?', 'Restaurar');
+      if(!go) return;
       try{
         if(data.schemaVersion === 3){
           DB.write(Store.KEY, JSON.stringify(data));            // respaldo v3: tal cual
@@ -1529,9 +1581,9 @@ function importJSON(){
           DB.remove(Store.KEY_V2);                             // fuerza migración v1→…→v3
         }
       }
-      catch(_){ alert('No pude guardar el respaldo (almacenamiento no disponible en este navegador).'); return; }
-      alert('✅ Respaldo restaurado. La app se recargará para aplicarlo.');
-      location.reload();
+      catch(_){ showToast('No pude guardar el respaldo (almacenamiento no disponible).', 'error'); return; }
+      showToast('✅ Respaldo restaurado. Recargando…', 'success');
+      setTimeout(() => location.reload(), 950);
     };
     reader.readAsText(file);
   });
@@ -1681,7 +1733,7 @@ function weeklyMetrics(){
 }
 
 function renderProgress(){
-  const host = document.getElementById('progress');
+  const host = document.getElementById('progress-body');
   if(!host) return;
   const cstats = consistencyStats();
   const insights = buildInsights();
@@ -1779,99 +1831,8 @@ function dismissBanner(){
    ---------------------------------------------------------------- */
 function toggleStudy(on){
   studyMode = (on === undefined) ? !studyMode : !!on;   // sin argumento = alterna
-  syncExpressBtn();
-  render();        // re-pinta el día con el schema exprés o el completo
+  render();        // re-pinta el día (los botones de modo reflejan el estado)
   Store.save();
-}
-
-/** Refleja el estado del Modo Express en el botón grande del dock. */
-function syncExpressBtn(){
-  const btn = document.getElementById('expressBtn');
-  if(!btn) return;
-  btn.setAttribute('aria-pressed', studyMode ? 'true' : 'false');
-  const st = document.getElementById('expressState');
-  if(st) st.textContent = studyMode ? 'Activo · rutina exprés' : 'Rutina completa';
-}
-
-/* ----------------------------------------------------------------
-   7d. RECORDATORIOS DE CALENDARIO
-   ------------------------------------------------------------
-   Dos vías, ambas sin servidor:
-   - Google Calendar: enlace "Añadir" con evento semanal pre-cargado.
-   - Otros calendarios: descarga de un .ics estándar (se importa al calendario).
-   ---------------------------------------------------------------- */
-const CAL_HOUR = 18;   // hora por defecto del entreno (18:00)
-
-/** Enlace para añadir el entreno de un día a Google Calendar (recurrente). */
-function googleCalendarUrl(d){
-  const day = SCHEDULE[d];
-  const date = dateForDow(d);
-  const pad = n => String(n).padStart(2, '0');
-  const fmt = (hh, mm) => `${date.getFullYear()}${pad(date.getMonth()+1)}${pad(date.getDate())}T${pad(hh)}${pad(mm)}00`;
-  const desc = day.ex.map((e, k) => `${k+1}. ${e.n} — ${e.s}x${e.r}`).join('\n');
-  const params = new URLSearchParams({
-    action: 'TEMPLATE',
-    text: `🏋️ Entreno · ${day.type}`,
-    dates: `${fmt(CAL_HOUR, 0)}/${fmt(CAL_HOUR + 1, 0)}`,
-    details: `${day.sub}\n\n${desc}`,
-    recur: 'RRULE:FREQ=WEEKLY'
-  });
-  return `https://calendar.google.com/calendar/render?${params.toString()}`;
-}
-
-/** Pinta el panel de recordatorios (enlaces de Google + descarga .ics). */
-function renderCalendar(){
-  const host = document.getElementById('calendar');
-  if(!host) return;
-  const links = ORDER.filter(d => !SCHEDULE[d].rest).map(d => {
-    const day = SCHEDULE[d];
-    return `<a class="cal-link" href="${googleCalendarUrl(d)}" target="_blank" rel="noopener">
-      <span><b>${day.label}</b> · ${day.type}</span><span class="cal-go">➕ Google</span></a>`;
-  }).join('');
-  host.innerHTML = `
-    <h3>Añade tus entrenos al calendario</h3>
-    <p><small>Recordatorios <b>semanales</b> a las ${CAL_HOUR}:00. Toca un día y se abre Google
-      Calendar con todo pre-cargado: solo pulsa <b>Guardar</b>.</small></p>
-    <div class="cal-list">${links}</div>
-    <h3>¿Otro calendario?</h3>
-    <p><small>Descarga el archivo .ics y ábrelo con tu app (Samsung Calendar y Google Calendar lo importan solo).</small></p>
-    <button class="pbtn" onclick="descargarICS()" style="margin-top:4px">📥 Descargar .ics</button>
-    <button class="panel-close" onclick="closePanels()">Cerrar</button>`;
-}
-
-/** Genera y descarga un .ics estándar con los entrenos de la semana (offline). */
-function descargarICS(){
-  const pad = n => String(n).padStart(2, '0');
-  const esc = s => String(s).replace(/\\/g,'\\\\').replace(/;/g,'\\;').replace(/,/g,'\\,').replace(/\n/g,'\\n');
-  const fmtLocal = (d, hh, mm) => `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}T${pad(hh)}${pad(mm)}00`;
-  const stamp = new Date().toISOString().replace(/[-:]/g,'').replace(/\.\d{3}Z$/,'Z');
-
-  const lines = ['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Entreno V//ES','CALSCALE:GREGORIAN','METHOD:PUBLISH'];
-  ORDER.forEach(d=>{
-    const day = SCHEDULE[d];
-    if(day.rest) return;                       // los días de descanso no van al calendario
-    const date = dateForDow(d);
-    const desc = day.ex.map((e,k)=>`${k+1}. ${e.n} — ${e.s}x${e.r}`).join('\n');
-    lines.push(
-      'BEGIN:VEVENT',
-      `UID:entrenov-${d}-${weekId()}@local`,
-      `DTSTAMP:${stamp}`,
-      `DTSTART:${fmtLocal(date,CAL_HOUR,0)}`,    // hora local "flotante"
-      `DTEND:${fmtLocal(date,CAL_HOUR+1,0)}`,    // 1 h de duración
-      'RRULE:FREQ=WEEKLY',                     // se repite cada semana
-      `SUMMARY:${esc('🏋️ Entreno · ' + day.type)}`,
-      `DESCRIPTION:${esc(day.sub + '\n\n' + desc)}`,
-      'END:VEVENT'
-    );
-  });
-  lines.push('END:VCALENDAR');
-
-  const blob = new Blob([lines.join('\r\n')], { type:'text/calendar;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = 'entreno-v.ics';
-  document.body.appendChild(a); a.click(); a.remove();
-  URL.revokeObjectURL(url);
 }
 
 /* ----------------------------------------------------------------
@@ -1896,7 +1857,6 @@ function registerSW(){
 applyTheme();                              // Fase E: aplica el tema guardado antes de pintar
 renderWeek();
 renderBanner();
-syncExpressBtn();                          // refleja la preferencia guardada en el botón Express
 bindObservers();                           // Observer registrado UNA sola vez
 renderDays();
 render();

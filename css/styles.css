@@ -269,6 +269,34 @@ footer p{margin:0 0 8px;} footer b{color:var(--text);}
   border-radius:11px; cursor:pointer; transition:transform .1s, border-color .15s;}
 .addset:active{transform:scale(.98);} .addset:hover{border-color:var(--accent);}
 
+/* Editor de rutinas (spec §46): añadir/quitar/reordenar/editar ejercicios */
+.dayprog-actions{display:flex; gap:8px; align-items:center;}
+.ed-list{display:flex; flex-direction:column; gap:10px; margin:6px 0 12px;}
+.ed-row{background:var(--surface-2); border:1px solid var(--border); border-radius:14px;
+  padding:11px; display:flex; flex-direction:column; gap:9px;}
+.ed-row-top{display:flex; align-items:center; gap:8px;}
+.ed-idx{flex:0 0 auto; width:22px; height:22px; border-radius:7px; display:grid; place-items:center;
+  font-size:11px; font-weight:800; color:var(--accent); background:color-mix(in srgb,var(--accent) 18%,transparent);}
+.ed-name{flex:1; min-width:0; background:var(--surface); border:1px solid var(--border); border-radius:10px;
+  color:var(--text); font-family:inherit; font-size:14px; font-weight:700; padding:9px 11px;}
+.ed-name:focus,.ed-purpose:focus,.ed-fields input:focus{outline:none; border-color:var(--accent);}
+.ed-ops{flex:0 0 auto; display:flex; gap:5px;}
+.ed-op{width:34px; height:34px; border-radius:9px; border:1px solid var(--border); background:var(--surface);
+  color:var(--text); font-size:15px; cursor:pointer; display:grid; place-items:center; transition:transform .1s, border-color .12s;}
+.ed-op:active{transform:scale(.9);} .ed-op:hover{border-color:var(--accent);}
+.ed-del{color:#ff6b6b;} .ed-del:hover{border-color:color-mix(in srgb,#ff5c5c 55%,var(--border));}
+.ed-purpose{width:100%; box-sizing:border-box; background:var(--surface); border:1px solid var(--border);
+  border-radius:10px; color:var(--text); font-family:inherit; font-size:12.5px; padding:8px 11px;}
+.ed-fields{display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px;}
+.ed-fields label{display:flex; flex-direction:column; gap:4px; min-width:0; font-size:9.5px; font-weight:700;
+  letter-spacing:.05em; text-transform:uppercase; color:var(--muted);}
+.ed-fields input{width:100%; box-sizing:border-box; background:var(--surface); border:1px solid var(--border);
+  border-radius:9px; color:var(--text); font-family:inherit; font-size:13px; font-weight:600; padding:8px; text-align:center; min-width:0;}
+.ed-add{width:100%; background:var(--surface-2); border:1px dashed var(--border); color:var(--text);
+  font-family:inherit; font-weight:700; font-size:13px; padding:12px; border-radius:12px; cursor:pointer;
+  margin-bottom:12px; transition:border-color .15s, transform .1s;}
+.ed-add:active{transform:scale(.98);} .ed-add:hover{border-color:var(--accent);}
+
 /* "Descanso" como botón que abre el cronómetro */
 .stat-rest{cursor:pointer; font-family:inherit; transition:transform .1s, border-color .15s;}
 .stat-rest:active{transform:scale(.95);}

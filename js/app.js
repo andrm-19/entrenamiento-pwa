@@ -370,28 +370,39 @@ const Store = {
    que lo habilitará (crear/editar/duplicar/reordenar) sin tocar el dominio. */
 const RoutineRepository = {
   KEY: 'entrenoV.plan.v1',
-  /** Lee los overrides de rutina (ediciones del usuario) o null. */
-  async load(){ try{ const raw = await IDB.get(this.KEY); return raw ? JSON.parse(raw) : null; }catch(e){ return null; } },
-  /** Persiste un parche por día: mergea sobre lo guardado y escribe en IndexedDB.
-      patch p.ej. { type, sub } o { ex:[...] }. Devuelve true si se guardó. */
+  /** Overrides desde localStorage (síncrono, para el primer render sin parpadeo). */
+  loadSync(){ try{ const raw = DB.read(this.KEY); return raw ? JSON.parse(raw) : null; }catch(e){ return null; } },
+  /** Overrides desde IndexedDB (capa durable). */
+  async loadIDB(){ try{ const raw = await IDB.get(this.KEY); return raw ? JSON.parse(raw) : null; }catch(e){ return null; } },
+  /** Persiste un parche por día en localStorage (sync) + IndexedDB (durable).
+      patch p.ej. { ex:[...], express:[...] } o { type, sub }. */
   async saveDay(dow, patch){
     try{
-      const ov = (await this.load()) || {};
+      const ov = this.loadSync() || {};
       ov[dow] = Object.assign({}, ov[dow], patch);
-      const ok = await IDB.set(this.KEY, JSON.stringify(ov));
-      if(ok){ Object.assign(SCHEDULE[dow], patch); freezeExerciseIds(); }
-      return ok;
+      const json = JSON.stringify(ov);
+      DB.write(this.KEY, json);      // espejo síncrono
+      IDB.set(this.KEY, json);       // durable (async, fire-and-forget)
+      return true;
     }catch(e){ return false; }
   },
-  /** Aplica los overrides guardados sobre SCHEDULE en memoria y repinta si cambió.
-      Sin overrides -> no-op (comportamiento idéntico al plan por defecto). */
+  /** Mergea un objeto de overrides sobre SCHEDULE en memoria. Devuelve si cambió. */
+  _merge(ov){
+    let changed = false;
+    for(const dow in ov){ if(SCHEDULE[dow]){ Object.assign(SCHEDULE[dow], ov[dow]); changed = true; } }
+    if(changed) freezeExerciseIds();
+    return changed;
+  },
+  /** Aplica overrides ANTES del primer render (síncrono). Sin overrides -> no-op. */
+  applySync(){ const ov = this.loadSync(); if(ov) this._merge(ov); },
+  /** Reconciliación durable (spec §33): si localStorage se limpió pero IndexedDB
+      conserva las ediciones de rutina, las restaura y repinta. Tras el primer render. */
   async applyOverrides(){
     try{
-      const ov = await this.load();
-      if(!ov) return;
-      let changed = false;
-      for(const dow in ov){ if(SCHEDULE[dow]){ Object.assign(SCHEDULE[dow], ov[dow]); changed = true; } }
-      if(changed){ freezeExerciseIds(); renderDays(); render(); }
+      const idb = await this.loadIDB();
+      const ls  = this.loadSync();
+      if(idb && !ls){ DB.write(this.KEY, JSON.stringify(idb)); if(this._merge(idb)){ renderDays(); render(); } }
+      else if(ls && !idb){ IDB.set(this.KEY, JSON.stringify(ls)); }
     }catch(e){ /* sin overrides: se queda el plan por defecto */ }
   }
 };
@@ -592,7 +603,7 @@ const done  = {};     // { "<key>": true }
 const setsMap = {};   // { "<key>": [ { w, reps, rir, type } ] }  series reales (Fase B)
 const notes = {};     // { "<key>": "texto" }  +  { "sess-<x?><dia>": "feedback" }
 const bests = {};     // { "<dia>-<id>": { w, reps, date } }  récord con fecha
-let current = todayDow, studyMode = false, bannerHidden = false, theme = 'dark', restDefault = 0;
+let current = todayDow, studyMode = false, bannerHidden = false, theme = 'dark', restDefault = 0, editMode = false;
 Store.load();         // hidrata todo lo anterior (migra v1->v2 la primera vez)
 
 /* ----------------------------------------------------------------
@@ -641,6 +652,8 @@ function parseFirstInt(s){ const m = String(s).match(/\d+(\.\d+)?/); return m ? 
 
 /** Escapa texto para inyectarlo con seguridad dentro de un <textarea>. */
 function escapeHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+/** Escapa para usar dentro de un atributo entre comillas dobles (añade &quot;). */
+function escapeAttr(s){ return escapeHtml(s == null ? '' : s).replace(/"/g,'&quot;'); }
 
 /** Clave única del ejercicio en el estado: namespacing por modo (exprés = 'x'). */
 function exKey(i){ return `${studyMode ? 'x' : ''}${current}-${i}`; }
@@ -965,6 +978,7 @@ function render(){
       <button class="rbtn" onclick="openPanel('progress')">Ver mi progreso</button>
     </div>`; return;
   }
+  if(editMode){ view.innerHTML = renderRoutineEditor(day); return; }
   const exList = visibleEx(day);
   const total = exList.length;
   const firstExtra = exList.findIndex(e => e.extra);
@@ -1019,7 +1033,10 @@ function render(){
     </section>
     <div class="dayprog">
       <div class="dayprog-top"><span><b id="pcount">0</b> / ${total} ejercicios</span>
-        <button class="btn-ghost" type="button" onclick="resetDay()">Reiniciar</button></div>
+        <span class="dayprog-actions">
+          ${studyMode ? '' : '<button class="btn-ghost" type="button" onclick="toggleEditMode(true)">✏️ Editar</button>'}
+          <button class="btn-ghost" type="button" onclick="resetDay()">Reiniciar</button>
+        </span></div>
       <div class="pbar"><i id="pbar"></i></div>
     </div>
     <div class="list">${list}</div>
@@ -1206,6 +1223,12 @@ function onFieldChange(e){
   if(!k) return;
   const i = +el.dataset.i, key = exKey(i);
 
+  if(k === 'edit'){   // editor de rutina: cambia un campo del ejercicio (nombre, series, reps…)
+    const field = el.dataset.field, day = SCHEDULE[current];
+    if(day.ex && day.ex[i]){ day.ex[i][field] = el.value; persistRoutineDebounced(); }
+    return;
+  }
+
   if(k === 'done'){
     done[key] = el.checked;
     if(el.checked) ensureSessionStarted(current);
@@ -1255,6 +1278,12 @@ function onFieldChange(e){
 
 /** Clics dentro de #view: steppers +/− y cronómetro de descanso. */
 function onViewClick(e){
+  const eact = e.target.closest('[data-editact]');
+  if(eact){ routineEditAction(eact.dataset.editact, +eact.dataset.i); return; }
+
+  const addex = e.target.closest('[data-addex]');
+  if(addex){ routineAddExercise(); return; }
+
   const rest = e.target.closest('[data-rest]');
   if(rest){ startRest(+rest.dataset.rest); return; }
 
@@ -1529,8 +1558,102 @@ function updateVolume(){
     : `🏋️ Registra peso y reps para ver tu volumen total`;
 }
 
+/* ----------------------------------------------------------------
+   7d. EDITOR DE RUTINAS (spec §46) · añadir/quitar/reordenar/editar
+   ------------------------------------------------------------
+   Edita SCHEDULE[current].ex en memoria y persiste el override vía
+   RoutineRepository (IndexedDB). El id de cada ejercicio se mantiene
+   estable: renombrar NO rompe el historial (indexado por id, no por nombre).
+   ---------------------------------------------------------------- */
+function newExercise(){
+  return { id:'ex-'+Date.now().toString(36)+Math.floor(Math.random()*1e4).toString(36),
+    n:'Nuevo ejercicio', p:'', s:'3', r:'8–12', d:'90 s', m:[], q:'', tech:[] };
+}
+/** Persiste el día editado (ejercicios + variante exprés) en IndexedDB. */
+function persistRoutine(){ const d = SCHEDULE[current]; return RoutineRepository.saveDay(current, { ex:d.ex, express:d.express }); }
+const persistRoutineDebounced = debounce(persistRoutine, 400);
+
+/** Recalcula los índices 'base' de la variante exprés tras reordenar/eliminar,
+    usando el id del ejercicio (capturado al entrar en edición). Descarta los que
+    apunten a un ejercicio eliminado. No-op si el día no define exprés. */
+function repairExpress(day){
+  if(!Array.isArray(day.express)) return;
+  day.express = day.express.map(x => {
+    const bid = x._bid || (day.ex[x.base] && day.ex[x.base].id);
+    const idx = day.ex.findIndex(e => e.id === bid);
+    return idx >= 0 ? Object.assign({}, x, { base:idx, _bid:bid }) : null;
+  }).filter(Boolean);
+}
+
+/** Entra/sale del modo edición de la rutina del día. */
+function toggleEditMode(on){
+  editMode = (on === undefined) ? !editMode : !!on;
+  if(editMode){
+    const day = SCHEDULE[current];
+    if(Array.isArray(day.express)) day.express.forEach(x => { x._bid = day.ex[x.base] && day.ex[x.base].id; });
+    stopRest();
+  } else {
+    persistRoutine();          // sella la última edición
+  }
+  window.scrollTo({ top:0, behavior:'smooth' });
+  render();
+}
+
+/** Acción estructural del editor: reordenar (up/down) o eliminar (del). */
+function routineEditAction(action, i){
+  const day = SCHEDULE[current], ex = day.ex;
+  if(!ex || !ex[i]) return;
+  if(action === 'del'){
+    if(ex.length <= 1){ showToast('La rutina necesita al menos un ejercicio.', 'error'); return; }
+    ex.splice(i, 1);
+  } else if(action === 'up' && i > 0){
+    const t = ex[i-1]; ex[i-1] = ex[i]; ex[i] = t;
+  } else if(action === 'down' && i < ex.length - 1){
+    const t = ex[i+1]; ex[i+1] = ex[i]; ex[i] = t;
+  } else { return; }
+  repairExpress(day);
+  persistRoutine();
+  render();
+}
+/** Añade un ejercicio en blanco al final de la rutina del día. */
+function routineAddExercise(){
+  SCHEDULE[current].ex.push(newExercise());
+  persistRoutine();
+  render();
+}
+
+/** Vista del editor (reemplaza la vista normal del día en modo edición). */
+function renderRoutineEditor(day){
+  const rows = day.ex.map((e, i) => `
+    <div class="ed-row" data-i="${i}">
+      <div class="ed-row-top">
+        <span class="ed-idx">${i + 1}</span>
+        <input class="ed-name" value="${escapeAttr(e.n)}" data-k="edit" data-i="${i}" data-field="n" placeholder="Nombre del ejercicio" aria-label="Nombre ejercicio ${i + 1}">
+        <span class="ed-ops">
+          <button class="ed-op" type="button" data-editact="up" data-i="${i}" aria-label="Subir ejercicio ${i + 1}">↑</button>
+          <button class="ed-op" type="button" data-editact="down" data-i="${i}" aria-label="Bajar ejercicio ${i + 1}">↓</button>
+          <button class="ed-op ed-del" type="button" data-editact="del" data-i="${i}" aria-label="Eliminar ejercicio ${i + 1}">🗑</button>
+        </span>
+      </div>
+      <input class="ed-purpose" value="${escapeAttr(e.p || '')}" data-k="edit" data-i="${i}" data-field="p" placeholder="Énfasis (p. ej. Pecho superior)" aria-label="Énfasis ${i + 1}">
+      <div class="ed-fields">
+        <label>Series<input value="${escapeAttr(e.s || '')}" data-k="edit" data-i="${i}" data-field="s" placeholder="4" aria-label="Series objetivo ${i + 1}"></label>
+        <label>Reps<input value="${escapeAttr(e.r || '')}" data-k="edit" data-i="${i}" data-field="r" placeholder="8–12" aria-label="Reps objetivo ${i + 1}"></label>
+        <label>Descanso<input value="${escapeAttr(e.d || '')}" data-k="edit" data-i="${i}" data-field="d" placeholder="90 s" aria-label="Descanso ${i + 1}"></label>
+      </div>
+    </div>`).join('');
+  return `<section class="dayhead"><div class="dayhead-main">
+      <div class="daytype">Editar rutina</div>
+      <div class="daysub">${day.label} · ${day.type} — añade, quita, reordena o ajusta tus ejercicios. Se guarda solo.</div>
+    </div></section>
+    <div class="ed-list">${rows}</div>
+    <button class="ed-add" type="button" data-addex>＋ Añadir ejercicio</button>
+    <button class="finish-btn" type="button" onclick="toggleEditMode(false)">✓ Listo</button>`;
+}
+
 function select(d){
   current = d;
+  editMode = false;
   closePanels();
   renderDays();
   render();
@@ -1539,6 +1662,7 @@ function select(d){
 }
 
 function openPanel(id){
+  editMode = false;
   closePanels();
   if(id === 'progress') renderProgress();   // genera las gráficas al abrir
   if(id === 'settings') renderSettings();   // genera el panel de ajustes
@@ -2001,6 +2125,7 @@ applyTheme();                              // Fase E: aplica el tema guardado an
 renderWeek();
 renderBanner();
 bindObservers();                           // Observer registrado UNA sola vez
+RoutineRepository.applySync();             // Fase 1: aplica ediciones de rutina antes de pintar (sin parpadeo)
 renderDays();
 render();
 registerSW();

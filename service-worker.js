@@ -35,12 +35,16 @@ self.addEventListener('install', (event) => {
   self.skipWaiting();
 });
 
-// Activación: limpia versiones anteriores de la caché.
+// Activación: limpia versiones anteriores de la caché, toma control y —clave para
+// romper una caché "envenenada"— recarga las pestañas abiertas UNA vez, de modo que
+// una versión rota fijada por el SW antiguo se reemplace sola al abrir la app.
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys()
       .then((keys) => Promise.all(keys.filter((k) => k !== CACHE_VERSION).map((k) => caches.delete(k))))
       .then(() => self.clients.claim())
+      .then(() => self.clients.matchAll({ type: 'window' }))
+      .then((clients) => clients.forEach((c) => { try { c.navigate(c.url); } catch (e) { /* algunos clientes no permiten navigate */ } }))
   );
 });
 

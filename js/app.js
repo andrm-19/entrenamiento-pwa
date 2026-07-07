@@ -320,7 +320,7 @@ const Store = {
       syncSessionsFromWorking();
       const json = JSON.stringify({
         schemaVersion: 3,
-        ui: { current, studyMode, bannerHidden, theme, restDefault },
+        ui: { current, studyMode, bannerHidden, theme, restDefault, goals },
         sessions,
         bests,
         legacyHistory
@@ -419,6 +419,7 @@ function applyState(st){
   bannerHidden = !!ui.bannerHidden;
   theme        = (ui.theme === 'light') ? 'light' : 'dark';
   restDefault  = +ui.restDefault || 0;
+  goals        = Object.assign({ sessions:0, volume:0 }, (ui.goals || {}));
   Object.assign(sessions, (st && st.sessions) || {});
   Object.assign(bests, (st && st.bests) || {});
   Object.assign(legacyHistory, (st && st.legacyHistory) || {});
@@ -626,6 +627,7 @@ const setsMap = {};   // { "<key>": [ { w, reps, rir, type } ] }  series reales 
 const notes = {};     // { "<key>": "texto" }  +  { "sess-<x?><dia>": "feedback" }
 const bests = {};     // { "<dia>-<id>": { w, reps, date } }  récord con fecha
 let current = todayDow, studyMode = false, bannerHidden = false, theme = 'dark', restDefault = 0, editMode = false;
+let goals = { sessions:0, volume:0 };   // metas semanales (spec §81): 0 = sin meta
 Store.load();         // hidrata todo lo anterior (migra v1->v2 la primera vez)
 
 /* ----------------------------------------------------------------
@@ -1838,6 +1840,8 @@ function applyTheme(){
 function setTheme(t){ theme = (t === 'light') ? 'light' : 'dark'; applyTheme(); syncSettings(); Store.save(); }
 /** Fija el descanso por defecto (0 = usar el sugerido por cada ejercicio). */
 function setRestDefault(s){ restDefault = +s || 0; syncSettings(); Store.save(); }
+/** Fija una meta semanal (spec §81): kind = 'sessions' | 'volume'. 0 = sin meta. */
+function setGoal(kind, val){ goals[kind] = Math.max(0, Math.round(+val || 0)); syncSettings(); Store.save(); }
 /** Re-pinta el panel de ajustes si está abierto (refleja el estado activo). */
 function syncSettings(){ const p = document.getElementById('settings'); if(p && !p.hidden) renderSettings(); }
 /** Panel de configuración (spec §47/§100/§108). */
@@ -1853,6 +1857,12 @@ function renderSettings(){
     <h3>Descanso por defecto</h3>
     <p><small>Al marcar una serie el cronómetro usará este tiempo. «Del plan» respeta el descanso sugerido por cada ejercicio.</small></p>
     <div class="chip-row">${presets.map(s => `<button class="chipbtn ${restDefault === s ? 'on' : ''}" onclick="setRestDefault(${s})">${s === 0 ? 'Del plan' : s + 's'}</button>`).join('')}</div>
+    <h3>Metas semanales 🎯</h3>
+    <p><small>Ponte objetivos y sigue su progreso en la pestaña Progreso. 0 = sin meta.</small></p>
+    <label class="goal-field">Sesiones por semana
+      <input type="number" inputmode="numeric" min="0" max="14" value="${goals.sessions || ''}" placeholder="0" onchange="setGoal('sessions', this.value)" aria-label="Meta de sesiones por semana"></label>
+    <label class="goal-field">Volumen semanal (kg)
+      <input type="number" inputmode="numeric" min="0" step="500" value="${goals.volume || ''}" placeholder="0" onchange="setGoal('volume', this.value)" aria-label="Meta de volumen semanal en kg"></label>
     <h3>Glosario</h3>
     <details class="acc"><summary><span class="acc-ico">💡</span> ¿Qué es el RIR?</summary><div class="gloss"><b>Repeticiones en reserva.</b> Cuántas repeticiones más podrías haber hecho antes de fallar. RIR 2 = te quedaban 2; RIR 0 = fallo total. Para ganar músculo, apunta a RIR 0–3.</div></details>
     <details class="acc"><summary><span class="acc-ico">🔢</span> ¿Qué son las reps?</summary><div class="gloss"><b>Repeticiones:</b> cuántas veces levantas el peso en una serie. «70 kg × 10» = diez repeticiones con 70 kg. Un grupo de reps seguidas es una <b>serie</b>; descansas entre series.</div></details>
@@ -2092,17 +2102,26 @@ function achievementsHtml(){
 }
 /** Métricas clave de la semana (spec §75): series efectivas, RIR medio, ejercicios. */
 function weeklyMetrics(){
-  let effSets = 0, rirSum = 0, rirN = 0; const exSet = new Set();
+  let effSets = 0, totalSets = 0, rirSum = 0, rirN = 0, wSum = 0, repsSum = 0;
+  const exSet = new Set();
   for(const key in setsMap){
     if(!/^(x?)\d+-\d+$/.test(key)) continue;
     (setsMap[key] || []).forEach(s => {
-      if(s && s.w > 0 && s.reps > 0 && isEffective(s.type)){
+      if(!s) return;
+      totalSets++;
+      if(s.w > 0 && s.reps > 0 && isEffective(s.type)){
         effSets++; exSet.add(key);
+        wSum += s.w; repsSum += s.reps;
         if(s.rir !== '' && s.rir != null){ rirSum += +s.rir; rirN++; }
       }
     });
   }
-  return { effSets, avgRir: rirN ? rirSum / rirN : null, exercises: exSet.size };
+  return {
+    effSets, totalSets, exercises: exSet.size,
+    avgRir: rirN ? rirSum / rirN : null,
+    avgWeight: effSets ? wSum / effSets : null,
+    avgReps: effSets ? repsSum / effSets : null
+  };
 }
 
 /* --- Gráficas de progreso · rango temporal (spec §73/§74/§84) --- */
@@ -2130,6 +2149,20 @@ function progressComparisonHtml(){
   const pill = (lbl, pct) => `<div class="cmp ${pct==null?'':pct>=0?'up':'down'}">
     <span class="cmp-v">${pct==null ? '—' : (pct>=0?'▲ +':'▼ ')+pct+'%'}</span><span class="cmp-l">${lbl}</span></div>`;
   return `<div class="cmp-grid">${pill('vs. semana pasada', c.vsLast)}${pill('vs. hace 4 sem', c.vs4)}${pill('vs. hace 3 meses', c.vs12)}</div>`;
+}
+
+/** Barra de progreso de una meta (spec §81). Devuelve '' si la meta está en 0. */
+function goalBar(label, cur, goal, unit){
+  if(!goal) return '';
+  const pct = Math.min(100, Math.round(cur / goal * 100));
+  const done = cur >= goal;
+  return `<div class="goal-row ${done ? 'done' : ''}">
+    <div class="goal-top"><span>${label}</span><b>${fmtKg(cur)} / ${fmtKg(goal)}${unit ? ' ' + unit : ''}${done ? ' ✓' : ''}</b></div>
+    <div class="goal-track"><i style="width:${pct}%"></i></div></div>`;
+}
+/** Nº de días de la semana en curso con volumen registrado (para la meta de sesiones). */
+function weekSessionsCount(){
+  return ORDER.filter(d => !SCHEDULE[d].rest && dayVolumeAnyMode(d) > 0).length;
 }
 
 /** Récords históricos globales (spec §28/§76): calculados del historial completo.
@@ -2220,6 +2253,16 @@ function renderProgress(){
     </div>
     <div class="insights">${insights.map(t => `<div class="insight">${t}</div>`).join('')}</div>
     <div class="metrics">${metricsLine}</div>
+    ${(goals.sessions || goals.volume) ? `<h3>Metas 🎯</h3>
+      ${goalBar('Sesiones', weekSessionsCount(), goals.sessions, '')}
+      ${goalBar('Volumen', weekNow, goals.volume, 'kg')}` : ''}
+    <h3>Intensidad de la semana</h3>
+    <div class="stat-cards">
+      <div class="scard k1"><b>${wm.avgWeight != null ? fmtWeight(wm.avgWeight) : '—'}</b><span>peso medio (kg)</span></div>
+      <div class="scard k2"><b>${wm.avgReps != null ? wm.avgReps.toFixed(1) : '—'}</b><span>reps medias</span></div>
+      <div class="scard k3"><b>${wm.avgRir != null ? wm.avgRir.toFixed(1) : '—'}</b><span>RIR medio</span></div>
+      <div class="scard k4"><b>${wm.effSets}/${wm.totalSets}</b><span>series ef./tot.</span></div>
+    </div>
     <h3>Tu progreso 📈</h3>
     ${progressComparisonHtml()}
     <div class="range-tabs" role="group" aria-label="Rango temporal de la gráfica">

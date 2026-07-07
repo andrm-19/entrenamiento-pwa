@@ -507,6 +507,22 @@ footer p{margin:0 0 8px;} footer b{color:var(--text);}
 .cmp.down{border-color:color-mix(in srgb,#ff6b6b 30%,transparent); background:color-mix(in srgb,#ff6b6b 9%,var(--surface-2));}
 .cmp.down .cmp-v{color:#ff6b6b;}
 
+/* Metas (spec §81): barra de progreso + campos en Ajustes */
+.goal-row{margin:0 0 10px;}
+.goal-top{display:flex; justify-content:space-between; align-items:baseline; margin:0 2px 5px; font-size:12.5px; color:var(--muted);}
+.goal-top b{color:var(--text); font-variant-numeric:tabular-nums;}
+.goal-track{height:9px; background:var(--surface-2); border-radius:999px; overflow:hidden; border:1px solid var(--border);}
+.goal-track i{display:block; height:100%; background:linear-gradient(90deg, var(--primary), color-mix(in srgb,var(--primary) 60%, var(--legs))); border-radius:999px; transition:width .5s cubic-bezier(.2,.8,.2,1);}
+.goal-row.done .goal-track i{background:var(--legs);}
+.goal-row.done .goal-top b{color:var(--legs);}
+.goal-field{display:flex; justify-content:space-between; align-items:center; gap:12px; margin:0 0 9px;
+  font-size:13px; font-weight:600; color:var(--text);}
+.goal-field input{width:110px; flex:0 0 auto; background:var(--surface-2); border:1px solid var(--border);
+  border-radius:10px; color:var(--text); font-family:inherit; font-size:14px; font-weight:700;
+  text-align:center; padding:9px 8px; -moz-appearance:textfield;}
+.goal-field input::-webkit-outer-spin-button,.goal-field input::-webkit-inner-spin-button{-webkit-appearance:none; margin:0;}
+.goal-field input:focus{outline:none; border-color:var(--accent);}
+
 /* Ejes/etiquetas de la gráfica de líneas */
 .axis-lbl{fill:var(--muted); font-size:9px; font-weight:700; font-variant-numeric:tabular-nums;}
 

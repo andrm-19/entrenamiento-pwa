@@ -1401,7 +1401,7 @@ function refreshSets(i){
 /* ----------------------------------------------------------------
    7e. CRONÓMETRO DE DESCANSO  (toca "Descanso" para iniciarlo)
    ---------------------------------------------------------------- */
-let restTimerId = null, restLeft = 0, restEndId = null, restHideId = null;
+let restTimerId = null, restLeft = 0, restEndId = null, restHideId = null, restPaused = false, restMuted = false;
 function startRest(seconds){
   const bar = document.getElementById('restTimer');
   if(!bar) return;
@@ -1410,23 +1410,42 @@ function startRest(seconds){
   // oculte el nuevo a mitad de camino: ese era el bug del "reloj que no se va").
   clearInterval(restTimerId); clearTimeout(restEndId); clearTimeout(restHideId);
   restLeft = seconds;
-  bar.classList.remove('done');
+  restPaused = false; setRestPauseIcon();       // cada descanso arranca en marcha
+  bar.classList.remove('done', 'paused');
   bar.hidden = false;
   void bar.offsetWidth;          // fuerza un reflow: fija el estado inicial oculto...
   bar.classList.add('show');     // ...y ahora la transición de entrada arranca sí o sí
   paintRest();
   restTimerId = setInterval(()=>{
+    if(restPaused) return;       // en pausa: el reloj no corre (spec §62)
     restLeft--;
     if(restLeft <= 0){
       clearInterval(restTimerId);
       restLeft = 0; paintRest();                                 // muestra 00:00 un instante
-      if(navigator.vibrate) navigator.vibrate([200,100,200]);   // aviso háptico en móvil
+      if(!restMuted && navigator.vibrate) navigator.vibrate([200,100,200]);   // aviso háptico (si no está silenciado)
       bar.classList.add('done');
       restEndId = setTimeout(stopRest, 900);   // al llegar a 00:00 se oculta AUTOMÁTICAMENTE
       return;
     }
     paintRest();
   }, 1000);
+}
+/** Pausa/reanuda el cronómetro (spec §62). */
+function toggleRestPause(){
+  restPaused = !restPaused;
+  setRestPauseIcon();
+  const bar = document.getElementById('restTimer');
+  if(bar) bar.classList.toggle('paused', restPaused);
+}
+function setRestPauseIcon(){
+  const b = document.getElementById('restPauseBtn');
+  if(b){ b.textContent = restPaused ? '▶' : '⏸'; b.setAttribute('aria-label', restPaused ? 'Reanudar' : 'Pausar'); }
+}
+/** Silencia/activa el aviso háptico al terminar el descanso (spec §62). */
+function toggleRestMute(){
+  restMuted = !restMuted;
+  const b = document.getElementById('restMuteBtn');
+  if(b){ b.textContent = restMuted ? '🔕' : '🔔'; b.setAttribute('aria-label', restMuted ? 'Activar aviso' : 'Silenciar aviso'); }
 }
 function paintRest(){
   const mm = Math.floor(Math.max(0,restLeft) / 60), ss = Math.max(0,restLeft) % 60;
@@ -2064,10 +2083,45 @@ function weeklyMetrics(){
   return { effSets, avgRir: rirN ? rirSum / rirN : null, exercises: exSet.size };
 }
 
+/** Récords históricos globales (spec §28/§76): calculados del historial completo.
+    1RM máx, reps máx, volumen de sesión máx, mejor semana, mejor mes y racha máxima. */
+function globalRecords(){
+  let maxRm = 0, maxReps = 0, maxSessionVol = 0, maxRmName = '';
+  for(const date in sessions){
+    const s = sessions[date];
+    ['full','express'].forEach(mode => {
+      const bag = s[mode] && s[mode].ex; if(!bag) return;
+      for(const slug in bag){
+        const sets = bag[slug] && bag[slug].sets;
+        const rm = best1RM(sets);
+        if(rm > maxRm){ maxRm = rm; const ex = resolveBySlug(s.dayType, slug, mode); maxRmName = ex ? ex.n : ''; }
+        const vol = setsVolume(sets); if(vol > maxSessionVol) maxSessionVol = vol;
+        if(Array.isArray(sets)) for(const st of sets){ if(st && isEffective(st.type) && st.w > 0 && st.reps > maxReps) maxReps = st.reps; }
+      }
+    });
+  }
+  const curWk = weekId();
+  const bestWeek = Math.max(0, weekVolume(), ...weeklyVolumes().map(w => w.volume));
+  const byMonth = {};
+  for(const date in sessions){ const m = date.slice(0, 7); byMonth[m] = (byMonth[m] || 0) + sessionVolume(sessions[date]); }
+  const bestMonth = Math.max(0, ...Object.values(byMonth));
+  // Racha máxima de semanas activas consecutivas.
+  const active = {}; weeklyVolumes().forEach(w => { if(w.volume > 0) active[w.weekId] = true; });
+  if(weekVolume() > 0) active[curWk] = true;
+  let maxStreak = 0, run = 0, prev = null;
+  Object.keys(active).sort().forEach(wk => {
+    run = (prev && ymd(addDays(parseYmd(prev), 7)) === wk) ? run + 1 : 1;
+    if(run > maxStreak) maxStreak = run; prev = wk;
+  });
+  return { maxRm:Math.round(maxRm), maxRmName, maxReps, maxSessionVol:Math.round(maxSessionVol),
+           bestWeek:Math.round(bestWeek), bestMonth:Math.round(bestMonth), maxStreak };
+}
+
 function renderProgress(){
   const host = document.getElementById('progress-body');
   if(!host) return;
   const cstats = consistencyStats();
+  const grec = globalRecords();
   const insights = buildInsights();
   const wm = weeklyMetrics();
   const s1 = wm.effSets === 1 ? '' : 's';
@@ -2136,6 +2190,16 @@ function renderProgress(){
     ${muscleRows.length ? hBars(muscleRows, '--primary') : '<p><small>Registra pesos para ver el reparto por músculo.</small></p>'}
     <h3>Frecuencia muscular</h3>
     ${muscleFreqHtml()}
+    <h3>Récords históricos 🏆</h3>
+    <div class="stat-cards">
+      <div class="scard k3"><b>${grec.maxRm ? fmtKg(grec.maxRm) : '—'}</b><span>1RM máx (kg)</span></div>
+      <div class="scard k1"><b>${grec.maxReps || '—'}</b><span>reps máx</span></div>
+      <div class="scard k2"><b>${grec.maxSessionVol ? fmtKg(grec.maxSessionVol) : '—'}</b><span>vol. sesión (kg)</span></div>
+      <div class="scard k1"><b>${grec.bestWeek ? fmtKg(grec.bestWeek) : '—'}</b><span>mejor semana (kg)</span></div>
+      <div class="scard k2"><b>${grec.bestMonth ? fmtKg(grec.bestMonth) : '—'}</b><span>mejor mes (kg)</span></div>
+      <div class="scard k4"><b>${grec.maxStreak || 0}</b><span>racha máx (sem)</span></div>
+    </div>
+    ${grec.maxRmName ? `<p class="rec-note"><small>Tu mejor 1RM estimado es en <b>${grec.maxRmName}</b>.</small></p>` : ''}
     <h3>Tus récords (peso máximo)</h3>
     ${recRows.length ? hBars(recRows, '--legs') : '<p><small>Registra pesos y aquí verás tus máximos por ejercicio.</small></p>'}
     <h3>Tabla de datos</h3>

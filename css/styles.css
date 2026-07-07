@@ -306,19 +306,23 @@ footer p{margin:0 0 8px;} footer b{color:var(--text);}
 .rest-timer{position:fixed; left:50%; bottom:calc(var(--tab-h) + 12px);
   transform:translateX(-50%) translateY(16px); opacity:0; z-index:50;
   transition:transform .28s cubic-bezier(.2,.8,.2,1), opacity .28s ease;
-  display:flex; align-items:center; gap:10px; padding:10px 14px; border-radius:14px;
+  display:flex; align-items:center; flex-wrap:wrap; justify-content:center; gap:6px; padding:9px 12px; border-radius:14px;
   background:var(--surface); border:1px solid var(--accent);
-  box-shadow:0 8px 26px rgba(0,0,0,.6); max-width:92vw;}
+  box-shadow:0 8px 26px rgba(0,0,0,.6); max-width:94vw;}
 /* Estado visible: se despliega desde abajo con un fundido suave (One UI). */
 .rest-timer.show{transform:translateX(-50%) translateY(0); opacity:1;}
-.rest-timer .rest-ico{font-size:17px;}
-.rest-label{font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--muted);}
-.rest-time{font-size:22px; font-weight:800; font-variant-numeric:tabular-nums; min-width:62px; text-align:center;}
+.rest-timer .rest-ico{font-size:16px;}
+.rest-time{font-size:21px; font-weight:800; font-variant-numeric:tabular-nums; min-width:50px; text-align:center; margin-right:2px;}
 .rest-timer.done{border-color:var(--legs); animation:restPulse .5s ease infinite alternate;}
+.rest-timer.paused{border-color:#F4B73E;}
+.rest-timer.paused .rest-time{color:#F4B73E;}
 @keyframes restPulse{from{box-shadow:0 0 0 0 color-mix(in srgb,var(--legs) 60%,transparent);}
   to{box-shadow:0 0 0 8px transparent;}}
 .rest-add,.rest-skip{background:var(--surface-2); border:1px solid var(--border); color:var(--text);
-  font-weight:700; font-size:12px; padding:7px 11px; border-radius:9px; cursor:pointer;}
+  font-weight:700; font-size:12px; padding:7px 9px; min-width:34px; border-radius:9px; cursor:pointer;
+  transition:transform .1s, border-color .12s;}
+.rest-add:active,.rest-skip:active{transform:scale(.92);}
+.rest-add:hover,.rest-skip:hover{border-color:var(--accent);}
 .rest-skip{color:var(--muted);}
 
 /* === Panel de progreso: tarjetas resumen + gráficas === */

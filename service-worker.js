@@ -15,12 +15,12 @@
      · Para actualizar la app basta con subir CACHE_VERSION (y ?v= en index.html).
    ============================================================ */
 
-const CACHE_VERSION = 'entrenoV-v26';
+const CACHE_VERSION = 'entrenoV-v27';
 const APP_SHELL = [
   './',
   './index.html',
-  './css/styles.css?v=26',
-  './js/app.js?v=26',
+  './css/styles.css?v=27',
+  './js/app.js?v=27',
   './manifest.json',
   './assets/icon.svg'
 ];

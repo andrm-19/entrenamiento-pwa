@@ -193,8 +193,8 @@ function slugify(name){
     .normalize('NFD').replace(/[̀-ͯ]/g, '')   // quita tildes (marcas combinantes)
     .replace(/[^a-z0-9]+/g, ' ').trim().replace(/\s+/g, '-');
 }
-// Congelamos un id estable en cada ejercicio del plan (una sola vez, al arrancar).
-ORDER.forEach(d => { const day = SCHEDULE[d]; if(day.ex) day.ex.forEach(e => { e.id = slugify(e.n); }); });
+// Congelamos un id estable (slug) en cada ejercicio del plan (una sola vez, al arrancar).
+freezeExerciseIds();
 
 /* --- Utilidades de fecha (complementan las de §2) --- */
 function ymd(dt){ const y=dt.getFullYear(), m=String(dt.getMonth()+1).padStart(2,'0'), d=String(dt.getDate()).padStart(2,'0'); return `${y}-${m}-${d}`; }
@@ -330,6 +330,75 @@ const Store = {
     }catch(e){ /* almacenamiento no disponible: la app sigue en memoria */ }
   }
 };
+
+/* ================================================================
+   MODELOS DEL DOMINIO (spec §20-27) · tipos por JSDoc, sin build.
+   Documentan la forma de cada entidad para el refactor modular.
+   ----------------------------------------------------------------
+   @typedef {Object} Routine       Rutina/día del plan (editable).
+     @property {string} type       Nombre visible ("Empuje", "Tirón"…).
+     @property {string} sub        Subtítulo (grupos musculares).
+     @property {string} key        Clave de color (push/pull/legs/upper).
+     @property {string[]} muscles  Músculos destacados en el mapa.
+     @property {Exercise[]} ex      Ejercicios completos.
+     @property {Object[]} [express] Variante exprés (índices base + overrides).
+     @property {boolean} [rest]     Día de descanso.
+
+   @typedef {Object} Exercise      Ejercicio de la biblioteca/rutina.
+     @property {string} id         Slug estable (slugify del nombre).
+     @property {string} n          Nombre.
+     @property {string} p          Propósito/énfasis.
+     @property {string} s          Series objetivo ("4", "3–4").
+     @property {string} r          Reps objetivo ("8–12").
+     @property {string} d          Descanso sugerido ("2 min").
+     @property {string[]} m        Grupos musculares trabajados.
+     @property {string} q          Búsqueda de vídeo (YouTube).
+     @property {string[]} tech     Pasos de técnica.
+
+   @typedef {Object} SetEntry      Serie registrada (spec §27).
+     @property {number} w          Peso. @property {number} reps  Repeticiones.
+     @property {number|''} rir     RIR. @property {string} type   Tipo (§53).
+
+   @typedef {Object} PersonalRecord  Récord (spec §28).
+     @property {number} w @property {number} reps @property {string|null} date
+   ================================================================ */
+
+/* Repositorio de rutinas (spec §14/§46/§120): ÚNICO punto de acceso a las
+   ediciones de rutina del usuario, sobre IndexedDB. El plan por defecto
+   (SCHEDULE) es la semilla síncrona para un primer render instantáneo; encima
+   se aplican los overrides guardados. Aún sin editor de UI: esta es la capa
+   que lo habilitará (crear/editar/duplicar/reordenar) sin tocar el dominio. */
+const RoutineRepository = {
+  KEY: 'entrenoV.plan.v1',
+  /** Lee los overrides de rutina (ediciones del usuario) o null. */
+  async load(){ try{ const raw = await IDB.get(this.KEY); return raw ? JSON.parse(raw) : null; }catch(e){ return null; } },
+  /** Persiste un parche por día: mergea sobre lo guardado y escribe en IndexedDB.
+      patch p.ej. { type, sub } o { ex:[...] }. Devuelve true si se guardó. */
+  async saveDay(dow, patch){
+    try{
+      const ov = (await this.load()) || {};
+      ov[dow] = Object.assign({}, ov[dow], patch);
+      const ok = await IDB.set(this.KEY, JSON.stringify(ov));
+      if(ok){ Object.assign(SCHEDULE[dow], patch); freezeExerciseIds(); }
+      return ok;
+    }catch(e){ return false; }
+  },
+  /** Aplica los overrides guardados sobre SCHEDULE en memoria y repinta si cambió.
+      Sin overrides -> no-op (comportamiento idéntico al plan por defecto). */
+  async applyOverrides(){
+    try{
+      const ov = await this.load();
+      if(!ov) return;
+      let changed = false;
+      for(const dow in ov){ if(SCHEDULE[dow]){ Object.assign(SCHEDULE[dow], ov[dow]); changed = true; } }
+      if(changed){ freezeExerciseIds(); renderDays(); render(); }
+    }catch(e){ /* sin overrides: se queda el plan por defecto */ }
+  }
+};
+/** Congela un id estable (slug) en cada ejercicio del plan que no lo tenga. */
+function freezeExerciseIds(){
+  ORDER.forEach(d => { const day = SCHEDULE[d]; if(day && day.ex) day.ex.forEach(e => { if(!e.id) e.id = slugify(e.n); }); });
+}
 
 /** Copia un estado v2 (leído o recién migrado) a las variables en memoria. */
 function applyState(st){
@@ -1937,4 +2006,5 @@ render();
 registerSW();
 Store.save(); // fija la semana en curso (y archiva la anterior si cambió)
 Store.reconcileDurable();  // Fase 1: IndexedDB durable (restaura si localStorage se limpió)
+RoutineRepository.applyOverrides();  // Fase 1: aplica ediciones de rutina guardadas (si hay)
 checkRecovery();  // Fase C: avisa de un entrenamiento sin finalizar de esta semana

@@ -220,6 +220,53 @@ const DB = {
   remove(key){ try{ localStorage.removeItem(key); }catch(e){ /* sin persistencia: sigue en memoria */ } }
 };
 
+/* Capa IndexedDB (spec §11/§15/§120): almacén clave-valor durable.
+   IndexedDB resiste mejor que localStorage (no lo borra la limpieza "ligera"
+   del navegador ni el desalojo por espacio), así que actúa como FUENTE DURABLE.
+   localStorage se conserva como espejo síncrono para un arranque instantáneo
+   (sin parpadeo), respaldo y exportación. Todo con feature-detect + try/catch:
+   si IndexedDB no está disponible, la app sigue funcionando con localStorage.
+   Migrar a stores relacionales (workouts/sets/…) será reimplementar esto sin
+   tocar Store, servicios ni dominio (inversión de dependencias, spec §115). */
+const IDB = {
+  NAME: 'entrenoV', STORE: 'kv', _promise: null,
+  _open(){
+    if(this._promise) return this._promise;
+    this._promise = new Promise((resolve)=>{
+      try{
+        if(!('indexedDB' in self)){ resolve(null); return; }
+        const req = indexedDB.open(this.NAME, 1);
+        req.onupgradeneeded = ()=>{ const db = req.result; if(!db.objectStoreNames.contains('kv')) db.createObjectStore('kv'); };
+        req.onsuccess = ()=> resolve(req.result);
+        req.onerror   = ()=> resolve(null);
+      }catch(e){ resolve(null); }
+    });
+    return this._promise;
+  },
+  async get(key){
+    const db = await this._open(); if(!db) return null;
+    return new Promise((resolve)=>{ try{
+      const r = db.transaction(this.STORE,'readonly').objectStore(this.STORE).get(key);
+      r.onsuccess = ()=> resolve(r.result == null ? null : r.result);
+      r.onerror   = ()=> resolve(null);
+    }catch(e){ resolve(null); } });
+  },
+  async set(key, val){
+    if(val == null) return false;
+    const db = await this._open(); if(!db) return false;
+    return new Promise((resolve)=>{ try{
+      const t = db.transaction(this.STORE,'readwrite');
+      t.objectStore(this.STORE).put(val, key);
+      t.oncomplete = ()=> resolve(true);
+      t.onerror    = ()=> resolve(false);
+    }catch(e){ resolve(false); } });
+  }
+};
+/* Candado: no espejamos a IndexedDB hasta reconciliar en el arranque, para no
+   sobrescribir datos durables con un estado vacío (p. ej. si localStorage se
+   limpió pero IndexedDB conserva el historial). */
+let idbReconciled = false;
+
 const Store = {
   KEY:    'entrenoV.state.v3',
   KEY_V2: 'entrenoV.state.v2',
@@ -247,17 +294,39 @@ const Store = {
     }
   },
 
-  /** Vuelca los mapas de trabajo a 'sessions' y persiste el objeto v3. */
+  /** Reconciliación durable (spec §6/§33/§209 · nunca perder datos):
+      · IndexedDB tiene datos y localStorage NO -> restaura desde IndexedDB y repinta.
+      · localStorage tiene datos y IndexedDB NO -> siembra IndexedDB.
+      Tras esto habilita el espejo continuo a IndexedDB. Se llama una vez, al arrancar. */
+  async reconcileDurable(){
+    try{
+      const idbRaw = await IDB.get(this.KEY);
+      const lsRaw  = DB.read(this.KEY);
+      if(idbRaw && !lsRaw){
+        applyState(JSON.parse(idbRaw));   // localStorage se limpió: IndexedDB salva los datos
+        DB.write(this.KEY, idbRaw);
+        renderDays(); render();
+      }
+      idbReconciled = true;
+      const truth = DB.read(this.KEY);     // fuente vigente ya reconciliada
+      if(truth) IDB.set(this.KEY, truth);  // siembra/sincroniza IndexedDB
+    }catch(e){ idbReconciled = true; }
+  },
+
+  /** Vuelca los mapas de trabajo a 'sessions' y persiste el objeto v3
+      (localStorage síncrono + espejo durable en IndexedDB). */
   save(){
     try{
       syncSessionsFromWorking();
-      DB.write(this.KEY, JSON.stringify({
+      const json = JSON.stringify({
         schemaVersion: 3,
         ui: { current, studyMode, bannerHidden, theme, restDefault },
         sessions,
         bests,
         legacyHistory
-      }));
+      });
+      DB.write(this.KEY, json);
+      if(idbReconciled) IDB.set(this.KEY, json);   // espejo durable (async, fire-and-forget)
     }catch(e){ /* almacenamiento no disponible: la app sigue en memoria */ }
   }
 };
@@ -1867,4 +1936,5 @@ renderDays();
 render();
 registerSW();
 Store.save(); // fija la semana en curso (y archiva la anterior si cambió)
+Store.reconcileDurable();  // Fase 1: IndexedDB durable (restaura si localStorage se limpió)
 checkRecovery();  // Fase C: avisa de un entrenamiento sin finalizar de esta semana

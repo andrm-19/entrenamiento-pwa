@@ -6,7 +6,7 @@
 <title>Entreno V</title>
 
 <!-- PWA Android / Chrome -->
-<meta name="theme-color" content="#000000">
+<meta name="theme-color" content="#0E0F13">
 <meta name="color-scheme" content="dark">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="application-name" content="Entreno V">
@@ -15,15 +15,19 @@
 <link rel="manifest" href="manifest.json">
 
 <!-- Estilos externos (?v= fuerza recarga al cambiar de versión) -->
-<link rel="stylesheet" href="css/styles.css?v=9">
+<link rel="stylesheet" href="css/styles.css?v=19">
 </head>
 <body>
   <header>
+    <button class="gear" type="button" onclick="openPanel('settings')" aria-label="Configuración">⚙</button>
     <h1>Entreno V</h1>
     <div class="week" id="weeklabel"></div>
   </header>
 
   <section class="panel" id="progress" hidden style="--p:var(--primary)"></section>
+  <section class="panel" id="calendar" hidden style="--p:var(--primary)"></section>
+  <section class="panel" id="summary" hidden style="--p:var(--primary)"></section>
+  <section class="panel" id="settings" hidden style="--p:var(--primary)"></section>
 
   <main id="view"></main>
 
@@ -42,6 +46,7 @@
         <span class="ex-txt">Modo Express<small id="expressState">Rutina completa</small></span>
       </button>
       <button class="dbtn" type="button" onclick="openPanel('progress')"><span class="dico">📊</span>Progreso</button>
+      <button class="dbtn" type="button" onclick="openPanel('calendar')"><span class="dico">📅</span>Calendario</button>
     </div>
   </div>
 
@@ -89,6 +94,6 @@
   </svg>
 
   <!-- Lógica externa. 'defer' garantiza que el DOM esté listo antes de ejecutar. -->
-  <script src="js/app.js?v=9" defer></script>
+  <script src="js/app.js?v=19" defer></script>
 </body>
 </html>

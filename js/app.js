@@ -165,94 +165,338 @@ function weekId(){
 }
 
 /* ----------------------------------------------------------------
-   3. CAPA DE PERSISTENCIA  (Store -> localStorage)
+   3. CAPA DE PERSISTENCIA  (Store -> localStorage)  ·  ESQUEMA v2
    ------------------------------------------------------------
-   Guardamos un único objeto JSON bajo una sola clave:
-     { week, current, done, bannerHidden }
-   - "week" ata los checks a la semana en curso. Si al abrir la app
-     detectamos una semana distinta, empezamos en limpio (los checks
-     de la semana pasada no se arrastran a la nueva rutina).
-   - Todo va envuelto en try/catch para que la app no se rompa si el
-     navegador bloquea localStorage (modo privado, ciertos file://).
-   ---------------------------------------------------------------- */
-const Store = {
-  KEY: 'entrenoV.state.v1',
+   FASE 1 — De "libreta de la semana" a "archivador por fecha".
+   Antes: un único objeto con la semana en curso que se BORRABA al
+   cambiar de semana (solo quedaba un resumen). Ahora: un REGISTRO
+   HISTÓRICO de sesiones fechadas que NO se borra nunca.
 
-  /** Lee el estado persistido y lo concilia con la semana actual. */
+   Guardado (clave nueva 'entrenoV.state.v2'):
+     sessions:      { "<YYYY-MM-DD>": { dayType, full:{ex,note}, express:{ex,note} } }
+                    ex: { "<id>": { sets:[{w,reps}], done, note } }   (id = slug estable)
+     bests:         { "<dia>-<id>": { w, reps, date } }               (récord CON fecha)
+     legacyHistory: { "<weekId>": { volume, completed } }             (resúmenes v1, preservados)
+     ui:            { current, studyMode, bannerHidden }
+
+   En memoria seguimos usando mapas de trabajo por posición
+   (done/loads/notes, clave `${x?}${dia}-${idx}`) para NO tocar la UI:
+   al cargar los hidratamos desde 'sessions' y al guardar los volcamos
+   de vuelta. La traducción posición<->id y día<->fecha vive AQUÍ.
+   La v1 NO se borra: queda como respaldo silencioso.
+   Todo en try/catch: si algo falla, la app no se rompe.
+   ---------------------------------------------------------------- */
+
+/** Slug estable a partir del nombre: minúsculas, sin tildes, sin puntuación. */
+function slugify(name){
+  return String(name).toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')   // quita tildes (marcas combinantes)
+    .replace(/[^a-z0-9]+/g, ' ').trim().replace(/\s+/g, '-');
+}
+// Congelamos un id estable en cada ejercicio del plan (una sola vez, al arrancar).
+ORDER.forEach(d => { const day = SCHEDULE[d]; if(day.ex) day.ex.forEach(e => { e.id = slugify(e.n); }); });
+
+/* --- Utilidades de fecha (complementan las de §2) --- */
+function ymd(dt){ const y=dt.getFullYear(), m=String(dt.getMonth()+1).padStart(2,'0'), d=String(dt.getDate()).padStart(2,'0'); return `${y}-${m}-${d}`; }
+function parseYmd(s){ const [y,m,d]=String(s).split('-').map(Number); return new Date(y, (m||1)-1, d||1); }
+function addDays(dt, n){ const x=new Date(dt); x.setDate(dt.getDate()+n); return x; }
+function dowOffset(day){ return day===0 ? 6 : day-1; }               // lunes=0 … domingo=6
+/** Lunes (YYYY-MM-DD) de la semana que contiene una fecha dada. */
+function weekMondayOf(dateStr){ const d=parseYmd(dateStr); const off = d.getDay()===0 ? -6 : 1-d.getDay(); return ymd(addDays(d, off)); }
+/** Fecha real (YYYY-MM-DD) del día 'd' (0–6) en la semana ACTUAL. */
+function dateOfDay(d){ return ymd(dateForDow(d)); }
+
+/* --- Estado persistente (esquema v2). Se llena al cargar. --- */
+const sessions = {};        // { "<fecha>": { dayType, full:{ex,note}, express:{ex,note} } }
+const legacyHistory = {};   // resúmenes v1 preservados (semanas sin detalle)
+
+/* Adaptador de persistencia: ÚNICO punto de acceso a la base de datos local
+   (Fase F · spec §14/§15/§115 — inversión de dependencias). Hoy sobre localStorage;
+   para migrar a IndexedDB basta reimplementar read/write/remove aquí, sin tocar
+   Store, los servicios ni el dominio. */
+const DB = {
+  read(key){ try{ return localStorage.getItem(key); }catch(e){ return null; } },
+  write(key, val){ try{ localStorage.setItem(key, val); return true; }catch(e){ return false; } },
+  remove(key){ try{ localStorage.removeItem(key); }catch(e){ /* sin persistencia: sigue en memoria */ } }
+};
+
+const Store = {
+  KEY:    'entrenoV.state.v3',
+  KEY_V2: 'entrenoV.state.v2',
+  KEY_V1: 'entrenoV.state.v1',
+
+  /** Carga la v3 (o migra en cadena v1→v2→v3) y deja todo hidratado en memoria.
+      Las versiones anteriores NO se borran: quedan como respaldo silencioso. */
   load(){
-    const fresh = { week: weekId(), current: todayDow, done: {}, loads: {}, notes: {},
-                    bests: {}, studyMode: false, bannerHidden: false, history: {} };
     try{
-      const raw = localStorage.getItem(this.KEY);
-      if(!raw) return fresh;
-      const saved = JSON.parse(raw);
-      const history = saved.history || {};
-      // Semana nueva -> archivamos un resumen de la anterior y limpiamos checks/cargas.
-      if(saved.week !== fresh.week){
-        if(saved.week && (Object.keys(saved.done||{}).length || Object.keys(saved.loads||{}).length)){
-          history[saved.week] = {
-            volume: weekVolume(saved.loads || {}),
-            completed: Object.values(saved.done || {}).filter(Boolean).length
-          };
-        }
-        // Conservamos preferencias, récords (no caducan) y el historial.
-        return { ...fresh, bests: saved.bests || {},
-                 studyMode: !!saved.studyMode, bannerHidden: !!saved.bannerHidden,
-                 history: trimHistory(history) };
-      }
-      return {
-        week: fresh.week,
-        current: (saved.current in SCHEDULE) ? saved.current : todayDow,
-        done: saved.done || {},
-        loads: saved.loads || {},
-        notes: saved.notes || {},
-        bests: saved.bests || {},
-        studyMode: !!saved.studyMode,
-        bannerHidden: !!saved.bannerHidden,
-        history: trimHistory(history)
-      };
+      const rawV3 = DB.read(this.KEY);
+      if(rawV3){ applyState(JSON.parse(rawV3)); return; }
+
+      // v2 → v3: el esquema de sesiones es compatible (las series ya eran array).
+      // applyState hidrata (type='efectiva' por defecto) y save() sella la v3.
+      const rawV2 = DB.read(this.KEY_V2);
+      if(rawV2){ applyState(JSON.parse(rawV2)); this.save(); return; }
+
+      const rawV1 = DB.read(this.KEY_V1);
+      if(rawV1){ applyState(migrateV1toV2(JSON.parse(rawV1))); this.save(); return; }
+
+      // Nada previo: estado nuevo, limpio.
+      current = todayDow; studyMode = false; bannerHidden = false;
     }catch(e){
-      return fresh;
+      current = todayDow; studyMode = false; bannerHidden = false;
     }
   },
 
-  /** Persiste el estado en memoria. Se llama tras cada cambio del usuario. */
+  /** Vuelca los mapas de trabajo a 'sessions' y persiste el objeto v3. */
   save(){
     try{
-      localStorage.setItem(this.KEY, JSON.stringify({
-        week: weekId(),
-        current,
-        studyMode,
-        bannerHidden,
-        done,
-        loads,
-        notes,
+      syncSessionsFromWorking();
+      DB.write(this.KEY, JSON.stringify({
+        schemaVersion: 3,
+        ui: { current, studyMode, bannerHidden, theme, restDefault },
+        sessions,
         bests,
-        history
+        legacyHistory
       }));
     }catch(e){ /* almacenamiento no disponible: la app sigue en memoria */ }
   }
 };
 
+/** Copia un estado v2 (leído o recién migrado) a las variables en memoria. */
+function applyState(st){
+  const ui = (st && st.ui) || {};
+  current      = (ui.current in SCHEDULE) ? ui.current : todayDow;
+  studyMode    = !!ui.studyMode;
+  bannerHidden = !!ui.bannerHidden;
+  theme        = (ui.theme === 'light') ? 'light' : 'dark';
+  restDefault  = +ui.restDefault || 0;
+  Object.assign(sessions, (st && st.sessions) || {});
+  Object.assign(bests, (st && st.bests) || {});
+  Object.assign(legacyHistory, (st && st.legacyHistory) || {});
+  hydrateWorkingMaps();     // reconstruye done/loads/notes de la semana actual
+}
+
+/** Reconstruye los mapas de trabajo (done/loads/notes) de la SEMANA ACTUAL
+    a partir de 'sessions'. Solo la semana en curso vive en esos mapas. */
+function hydrateWorkingMaps(){
+  for(const k in done) delete done[k];
+  for(const k in setsMap) delete setsMap[k];
+  for(const k in notes) delete notes[k];
+  for(const d of ORDER){
+    const day = SCHEDULE[d]; if(day.rest) continue;
+    const sess = sessions[dateOfDay(d)];
+    if(!sess) continue;
+    if(sess.full){
+      (day.ex||[]).forEach((e,i)=>{
+        const cell = sess.full.ex && sess.full.ex[e.id];
+        if(!cell) return;
+        if(cell.done) done[`${d}-${i}`] = true;
+        if(cell.sets && cell.sets.length) setsMap[`${d}-${i}`] = cell.sets.map(cleanSet);
+        if(cell.note) notes[`${d}-${i}`] = cell.note;
+      });
+      if(sess.full.note) notes[`sess-${d}`] = sess.full.note;
+    }
+    if(sess.express && day.express){
+      day.express.forEach((x,i)=>{
+        const base = day.ex[x.base]; if(!base) return;
+        const cell = sess.express.ex && sess.express.ex[base.id];
+        if(!cell) return;
+        if(cell.done) done[`x${d}-${i}`] = true;
+        if(cell.sets && cell.sets.length) setsMap[`x${d}-${i}`] = cell.sets.map(cleanSet);
+        if(cell.note) notes[`x${d}-${i}`] = cell.note;
+      });
+      if(sess.express.note) notes[`sess-x${d}`] = sess.express.note;
+    }
+  }
+}
+/** Normaliza una serie leída de disco a la forma de trabajo {w,reps,rir,type}. */
+function cleanSet(s){
+  return { w:(+s.w||0), reps:(+s.reps||0),
+           rir:(s.rir===0||s.rir)?String(s.rir):'',
+           type:s.type||'efectiva' };
+}
+
+/** Vuelca los mapas de trabajo de la semana actual a 'sessions' (por fecha).
+    No toca sesiones de otras fechas: el histórico solo crece. */
+function syncSessionsFromWorking(){
+  for(const d of ORDER){
+    const day = SCHEDULE[d]; if(day.rest) continue;
+    const date = dateOfDay(d);
+    const fullEx = {};
+    (day.ex||[]).forEach((e,i)=>{ const cell = buildCell(`${d}-${i}`); if(cell) fullEx[e.id] = cell; });
+    const expEx = {};
+    if(day.express) day.express.forEach((x,i)=>{ const base = day.ex[x.base]; if(!base) return; const cell = buildCell(`x${d}-${i}`); if(cell) expEx[base.id] = cell; });
+    const fullNote = notes[`sess-${d}`] || '';
+    const expNote  = notes[`sess-x${d}`] || '';
+    // Solo creamos/actualizamos la fecha si hay algo (o si ya existía).
+    if(sessions[date] || Object.keys(fullEx).length || Object.keys(expEx).length || fullNote || expNote){
+      const meta = sessions[date] || {};   // conserva el ciclo de vida de la sesión (Fase C)
+      sessions[date] = { dayType:d, full:{ex:fullEx, note:fullNote}, express:{ex:expEx, note:expNote},
+        startedAt: meta.startedAt || null, finishedAt: meta.finishedAt || null, snapshot: meta.snapshot || null };
+    }
+  }
+}
+
+/** Construye la celda {sets,done,note} de una clave de trabajo, o null si vacía.
+    Persiste TODAS las series con datos (peso o reps), con su RIR y tipo. */
+function buildCell(key){
+  const arr = setsMap[key], dn = done[key], nt = notes[key];
+  const cell = {};
+  const clean = Array.isArray(arr)
+    ? arr.filter(s => s && (s.w || s.reps)).map(s => {
+        const out = { w:(+s.w||0), reps:(+s.reps||0), type:s.type||'efectiva' };
+        if(s.rir !== '' && s.rir != null) out.rir = +s.rir;
+        return out;
+      })
+    : [];
+  if(clean.length) cell.sets = clean;
+  if(dn) cell.done = true;
+  if(nt) cell.note = nt;
+  return Object.keys(cell).length ? cell : null;
+}
+
+/** Convierte un estado v1 (semana en curso + resúmenes) a v2 (sesiones fechadas).
+    NO inventa datos: lo que la v1 no guardó (fechas de récords viejos, detalle de
+    semanas ya resumidas) queda tal cual (récords sin fecha, tendencia en
+    'legacyHistory'). Nada se pierde. */
+function migrateV1toV2(v1){
+  const week = v1.week || weekId();
+  const st = { schemaVersion:2, ui:{}, sessions:{}, bests:{}, legacyHistory:{} };
+  st.ui.current      = (v1.current in SCHEDULE) ? v1.current : todayDow;
+  st.ui.studyMode    = !!v1.studyMode;
+  st.ui.bannerHidden = !!v1.bannerHidden;
+
+  const dateInWeek = day => ymd(addDays(parseYmd(week), dowOffset(day)));
+  const ensure = (date, day) => (st.sessions[date] || (st.sessions[date] = { dayType:day, full:{ex:{},note:''}, express:{ex:{},note:''} }));
+  const slugAt = (day, idx, isX) => {
+    const dd = SCHEDULE[day]; if(!dd || dd.rest) return null;
+    if(isX){ const x = dd.express && dd.express[idx]; const base = x && dd.ex[x.base]; return base ? base.id : null; }
+    const e = dd.ex && dd.ex[idx]; return e ? e.id : null;
+  };
+  const putCell = (mode, day, slug, patch) => {
+    const cell = ensure(dateInWeek(day), day)[mode].ex; (cell[slug] || (cell[slug] = {}));
+    Object.assign(cell[slug], patch);
+  };
+  const scan = (map, apply) => { for(const key in (map||{})){ const m = key.match(/^(x?)(\d+)-(\d+)$/); if(!m) continue; const isX=m[1]==='x', day=+m[2], idx=+m[3], slug=slugAt(day,idx,isX); if(slug) apply(isX?'express':'full', day, slug, key); } };
+
+  scan(v1.loads, (mode,day,slug,key)=>{ const ld=v1.loads[key]; if(ld && (ld.w||ld.reps)) putCell(mode,day,slug,{ sets:[{w:ld.w||0,reps:ld.reps||0}] }); });
+  scan(v1.done,  (mode,day,slug,key)=>{ if(v1.done[key]) putCell(mode,day,slug,{ done:true }); });
+  scan(v1.notes, (mode,day,slug,key)=>{ const t=v1.notes[key]; if(t) putCell(mode,day,slug,{ note:t }); });
+
+  // Notas de sesión v1: claves "sess-<x?><dia>".
+  for(const key in (v1.notes||{})){
+    const m = key.match(/^sess-(x?)(\d+)$/); if(!m) continue;
+    const isX=m[1]==='x', day=+m[2], txt=v1.notes[key]; if(!txt) continue;
+    ensure(dateInWeek(day), day)[isX?'express':'full'].note = txt;
+  }
+
+  // Récords v1 (por posición, sin fecha) -> por id, fecha desconocida (null).
+  for(const key in (v1.bests||{})){
+    const m = key.match(/^(\d+)-(\d+)$/); if(!m) continue;
+    const day=+m[1], idx=+m[2], dd=SCHEDULE[day], e=dd && dd.ex && dd.ex[idx]; if(!e) continue;
+    st.bests[`${day}-${e.id}`] = { w:(v1.bests[key].w||0), reps:0, date:null };
+  }
+
+  // Tendencia acumulada (resúmenes v1) -> legacyHistory.
+  Object.assign(st.legacyHistory, v1.history || {});
+  return st;
+}
+
+/* --- Consultas de lectura del histórico (para récords y gráficas) --- */
+/** Resuelve un ejercicio guardado (dia,id,modo) contra el plan actual. */
+function resolveBySlug(dayType, slug, mode){
+  const day = SCHEDULE[dayType]; if(!day || day.rest) return null;
+  if(mode==='express' && day.express){
+    for(const x of day.express){ const base=day.ex[x.base]; if(base && base.id===slug) return {...base, ...x}; }
+    return null;
+  }
+  return (day.ex||[]).find(e=>e.id===slug) || null;
+}
+/** Volumen de una sesión (ambos modos): series(plan) × reps × peso. */
+function sessionVolume(sess){
+  if(!sess) return 0; let total=0;
+  ['full','express'].forEach(mode=>{
+    const bag = sess[mode] && sess[mode].ex; if(!bag) return;
+    for(const slug in bag){ total += setsVolume(bag[slug] && bag[slug].sets); }
+  });
+  return Math.round(total);
+}
+/** Volumen por semana (lunes) combinando el histórico real + resúmenes v1. */
+function weeklyVolumes(){
+  const byWeek = {};
+  for(const date in sessions){ const wk = weekMondayOf(date); byWeek[wk] = (byWeek[wk]||0) + sessionVolume(sessions[date]); }
+  for(const wk in legacyHistory){ if(!(wk in byWeek)) byWeek[wk] = legacyHistory[wk].volume || 0; }
+  return Object.keys(byWeek).sort().map(wk => ({ weekId:wk, volume:Math.round(byWeek[wk]) }));
+}
+/** Historial de un ejercicio (dia+id) en el tiempo: [{date, w, reps}] ascendente. */
+function exerciseHistory(dayType, slug){
+  const out = [];
+  for(const date in sessions){
+    const s = sessions[date]; if(s.dayType!==dayType) continue;
+    ['full','express'].forEach(mode=>{
+      const cell = s[mode] && s[mode].ex && s[mode].ex[slug];
+      const top = topSet(cell && cell.sets);            // mejor serie efectiva de esa sesión
+      if(top) out.push({ date, w:top.w||0, reps:top.reps||0 });
+    });
+  }
+  return out.sort((a,b)=> a.date<b.date ? -1 : a.date>b.date ? 1 : 0);
+}
+
 /* ----------------------------------------------------------------
-   4. ESTADO EN MEMORIA (hidratado desde el Store)
+   4. ESTADO EN MEMORIA (mapas de trabajo de la SEMANA ACTUAL)
+   ------------------------------------------------------------
+   done/loads/notes usan clave por posición `${x?}${dia}-${idx}` (el
+   modo exprés vive en el espacio 'x'). Son la vista editable de la
+   semana en curso: se hidratan desde 'sessions' al cargar y se
+   vuelcan de vuelta al guardar. 'bests' ya usa id estable.
    ---------------------------------------------------------------- */
-const _initial = Store.load();
-const done    = _initial.done;       // { "<key>": true }
-const loads   = _initial.loads;      // { "<key>": { w:Number, reps:Number } }
-const notes   = _initial.notes;      // { "<key>": "texto de la nota" }
-const bests   = _initial.bests;      // { "<dia>-<baseIdx>": { w:Number } }  récord histórico por ejercicio
-const history = _initial.history;    // { "<weekId>": { volume:Number, completed:Number } }
-let current      = _initial.current; // día seleccionado (0–6)
-let studyMode    = _initial.studyMode;
-let bannerHidden = _initial.bannerHidden;
-// "<key>" = `${studyMode?'x':''}${dia}-${indice}` -> el modo exprés guarda
-// sus datos en un espacio propio ('x'), sin colisionar con la rutina completa.
+const done  = {};     // { "<key>": true }
+const setsMap = {};   // { "<key>": [ { w, reps, rir, type } ] }  series reales (Fase B)
+const notes = {};     // { "<key>": "texto" }  +  { "sess-<x?><dia>": "feedback" }
+const bests = {};     // { "<dia>-<id>": { w, reps, date } }  récord con fecha
+let current = todayDow, studyMode = false, bannerHidden = false, theme = 'dark', restDefault = 0;
+Store.load();         // hidrata todo lo anterior (migra v1->v2 la primera vez)
 
 /* ----------------------------------------------------------------
    4b. UTILIDADES DE CARGAS / SEGUIMIENTO
    ---------------------------------------------------------------- */
 const WEIGHT_STEP = 2.5;  // incremento del stepper de peso (kg)
+
+/* --- SERIES REALES (Fase B) · tipos y agregados de una lista de series --- */
+/** Tipos de serie (spec §53). El primero es el valor por defecto. */
+const SET_TYPES = [
+  ['efectiva','Efectiva'], ['calentamiento','Calentamiento'], ['aproximacion','Aproximación'],
+  ['fallo','Al fallo'], ['dropset','Drop set'], ['backoff','Back-off'],
+  ['restpause','Rest-pause'], ['myoreps','Myo-reps'], ['superserie','Superserie']
+];
+/** Una serie cuenta para estadísticas salvo calentamiento/aproximación (spec §53). */
+function isEffective(type){ return type !== 'calentamiento' && type !== 'aproximacion'; }
+/** Volumen real = Σ (peso × reps) de las series EFECTIVAS con datos (spec §55). */
+function setsVolume(arr){
+  if(!Array.isArray(arr)) return 0;
+  let t = 0;
+  for(const s of arr){ if(s && s.w > 0 && s.reps > 0 && isEffective(s.type)) t += s.w * s.reps; }
+  return t;
+}
+/** Mejor serie efectiva por peso (para récords y curva de progreso). */
+function topSet(arr){
+  let best = null;
+  if(Array.isArray(arr)) for(const s of arr){
+    if(s && s.w > 0 && isEffective(s.type) && (!best || s.w > best.w)) best = s;
+  }
+  return best;
+}
+/** Mejor 1RM estimado entre las series efectivas registradas. */
+function best1RM(arr){
+  let m = 0;
+  if(Array.isArray(arr)) for(const s of arr){ if(s && isEffective(s.type)){ const r = epley1RM(s.w, s.reps); if(r > m) m = r; } }
+  return m;
+}
+/** Nº de series efectivas registradas (con peso y reps). */
+function effectiveSetCount(arr){
+  if(!Array.isArray(arr)) return 0;
+  return arr.filter(s => s && s.w > 0 && s.reps > 0 && isEffective(s.type)).length;
+}
 
 /** Primer número de un texto: "3" -> 3, "3–4" -> 3, "8–12" -> 8. */
 function parseFirstInt(s){ const m = String(s).match(/\d+(\.\d+)?/); return m ? parseFloat(m[0]) : 0; }
@@ -289,11 +533,7 @@ function resolveExercise(d, i, isExpress){
 
 /** Volumen de un ejercicio = series(plan) × reps(registradas) × peso(registrado). */
 function exVolume(d, i, e){
-  const ld = loads[exKey(i)];
-  if(!ld || !ld.w) return 0;
-  const sets = parseFirstInt(e.s) || 1;
-  const reps = ld.reps || parseFirstInt(e.r) || 0;
-  return sets * reps * ld.w;
+  return setsVolume(setsMap[exKey(i)]);
 }
 
 /** Volumen total del día actual (solo lo visible). */
@@ -304,27 +544,13 @@ function dayVolume(d){
 }
 
 /** Volumen de toda una semana a partir de su mapa de cargas guardado. */
-function weekVolume(loadsMap){
+function weekVolume(map){
+  map = map || setsMap;
   let total = 0;
-  for(const key in loadsMap){
-    const m = key.match(/^(x?)(\d+)-(\d+)$/);    // soporta claves normales y exprés ('x...')
-    if(!m) continue;
-    const e = resolveExercise(+m[2], +m[3], m[1] === 'x');
-    if(!e) continue;
-    const ld = loadsMap[key];
-    if(!ld || !ld.w) continue;
-    const sets = parseFirstInt(e.s) || 1;
-    const reps = ld.reps || parseFirstInt(e.r) || 0;
-    total += sets * reps * ld.w;
+  for(const key in map){
+    if(/^(x?)\d+-\d+$/.test(key)) total += setsVolume(map[key]);   // claves normales y exprés
   }
   return Math.round(total);
-}
-
-/** Mantiene el historial acotado a las últimas 12 semanas. */
-function trimHistory(h){
-  const keys = Object.keys(h).sort();
-  while(keys.length > 12){ delete h[keys.shift()]; }
-  return h;
 }
 
 /** Formatea kg con separador de miles en español. */
@@ -337,8 +563,9 @@ const debouncedSave = debounce(() => Store.save(), 400);
 /* ----------------------------------------------------------------
    4c. RÉCORDS, DESCANSO Y GRÁFICAS
    ---------------------------------------------------------------- */
-/** Clave del récord: identidad del ejercicio (compartida entre completo y exprés). */
-function bestKeyFor(i, e){ return `${current}-${studyMode && e && 'base' in e ? e.base : i}`; }
+/** Clave del récord: día + id estable del ejercicio (compartida entre completo y exprés,
+    porque el ejercicio exprés resuelto hereda el id de su ejercicio base). */
+function bestKeyFor(i, e){ return `${current}-${(e && e.id) || i}`; }
 
 /** Texto de la pista de récord para un ejercicio. */
 function bestCueContent(best, cur){
@@ -361,13 +588,10 @@ function parseRestSeconds(txt){
 /** Volumen de un día concreto sumando cargas de cualquier modo (completo + exprés). */
 function dayVolumeAnyMode(d){
   let total = 0;
-  for(const key in loads){
+  for(const key in setsMap){
     const m = key.match(/^(x?)(\d+)-(\d+)$/);
     if(!m || +m[2] !== d) continue;
-    const e = resolveExercise(d, +m[3], m[1] === 'x');
-    const ld = loads[key];
-    if(!e || !ld || !ld.w) continue;
-    total += (parseFirstInt(e.s) || 1) * (ld.reps || parseFirstInt(e.r) || 0) * ld.w;
+    total += setsVolume(setsMap[key]);
   }
   return Math.round(total);
 }
@@ -405,13 +629,13 @@ const MUSCLE_LABEL = {
 /** Volumen acumulado por grupo muscular esta semana (reparte el de cada ejercicio). */
 function muscleVolumeThisWeek(){
   const vol = {};
-  for(const key in loads){
+  for(const key in setsMap){
     const m = key.match(/^(x?)(\d+)-(\d+)$/);
     if(!m) continue;
     const e = resolveExercise(+m[2], +m[3], m[1] === 'x');
-    const ld = loads[key];
-    if(!e || !ld || !ld.w || !e.m || !e.m.length) continue;
-    const v = (parseFirstInt(e.s) || 1) * (ld.reps || parseFirstInt(e.r) || 0) * ld.w;
+    if(!e || !e.m || !e.m.length) continue;
+    const v = setsVolume(setsMap[key]);
+    if(!v) continue;
     const share = v / e.m.length;
     e.m.forEach(mu => { vol[mu] = (vol[mu] || 0) + share; });
   }
@@ -462,9 +686,10 @@ function svgArea(points){
  * al máximo. La semana en curso lleva un anillo. Crece cada lunes al archivarse.
  */
 function consistencyHeatmap(weekNow){
+  const curWk = weekId();
   const weeks = [
-    ...Object.keys(history).sort().map(k => ({ id:k, vol:history[k].volume || 0 })),
-    { id: weekId(), vol: weekNow, now:true }
+    ...weeklyVolumes().filter(w => w.weekId < curWk).map(w => ({ id:w.weekId, vol:w.volume })),
+    { id: curWk, vol: weekNow, now:true }
   ].slice(-12);
   const max = Math.max(1, ...weeks.map(w => w.vol));
   const level = v => v <= 0 ? 0 : v < max*0.25 ? 1 : v < max*0.5 ? 2 : v < max*0.75 ? 3 : 4;
@@ -630,8 +855,10 @@ function render(){
           </div>
           ${logRow(i)}
           ${bestRow(i, e)}
+          ${oneRmRow(i)}
           <div class="acc-wrap">
             <details class="acc"><summary><span class="acc-ico">📋</span> Cómo hacerlo</summary><ol class="tech-ol">${steps}</ol></details>
+            ${historyDetails(i, e)}
             ${noteDetails(i)}
             <a class="acc-link" href="${yt}" target="_blank" rel="noopener"><span class="acc-ico">▶</span> Ver video</a>
           </div>
@@ -650,6 +877,7 @@ function render(){
       <div class="bar"><i id="pbar"></i></div></div>
     <div class="list">${list}</div>
     <div class="volume" id="volume"></div>
+    <button class="finish-btn" onclick="finishCurrentSession()">✅ Finalizar entrenamiento</button>
     <div class="session-note">
       <h4><span class="acc-ico">📝</span> Feedback de la sesión</h4>
       <textarea class="note-input" rows="2" data-k="snote"
@@ -663,26 +891,46 @@ function render(){
 
 /** HTML del registro de carga (peso + reps). Sin handlers inline: solo data-*. */
 function logRow(i){
-  const ld = loads[exKey(i)] || {};
-  const wv = ld.w || '', rv = ld.reps || '';
-  return `<div class="log">
+  return `<div class="sets" id="sets-${i}">${setRows(i)}</div>
+    <button class="addset" type="button" data-addset data-i="${i}">＋ Añadir serie</button>`;
+}
+
+/** HTML de todas las series de un ejercicio (mínimo una fila para empezar). */
+function setRows(i){
+  const arr = setsMap[exKey(i)];
+  const list = (Array.isArray(arr) && arr.length) ? arr : [{ w:'', reps:'', rir:'', type:'efectiva' }];
+  return list.map((s, si) => setRow(i, si, s, list.length)).join('');
+}
+
+/** HTML de una fila de serie: nº · peso · reps · RIR · tipo · (eliminar si hay varias). */
+function setRow(i, si, s, count){
+  const wv = (s.w === '' || s.w == null) ? '' : s.w;
+  const rv = (s.reps === '' || s.reps == null) ? '' : s.reps;
+  const rr = (s.rir === '' || s.rir == null) ? '' : s.rir;
+  const type = s.type || 'efectiva';
+  const opts = SET_TYPES.map(([v, lbl]) => `<option value="${v}"${type === v ? ' selected' : ''}>${lbl}</option>`).join('');
+  return `<div class="setrow${isEffective(type) ? '' : ' warm'}" data-row="${si}">
+    <span class="set-idx">${si + 1}</span>
     <div class="log-field">
-      <button class="step" type="button" data-step data-i="${i}" data-field="w" data-delta="-${WEIGHT_STEP}" aria-label="Bajar peso">−</button>
-      <span class="log-box"><input id="w-${i}" class="log-input" type="number" inputmode="decimal" min="0" step="${WEIGHT_STEP}" value="${wv}" placeholder="0" data-k="load" data-i="${i}" data-field="w" aria-label="Peso en kg"><span class="log-unit">kg</span></span>
-      <button class="step" type="button" data-step data-i="${i}" data-field="w" data-delta="${WEIGHT_STEP}" aria-label="Subir peso">+</button>
+      <button class="step" type="button" data-step data-i="${i}" data-s="${si}" data-field="w" data-delta="-${WEIGHT_STEP}" aria-label="Bajar peso serie ${si + 1}">−</button>
+      <span class="log-box"><input class="log-input" type="number" inputmode="decimal" min="0" step="${WEIGHT_STEP}" value="${wv}" placeholder="0" data-k="set" data-i="${i}" data-s="${si}" data-field="w" aria-label="Peso serie ${si + 1} (kg)"><span class="log-unit">kg</span></span>
+      <button class="step" type="button" data-step data-i="${i}" data-s="${si}" data-field="w" data-delta="${WEIGHT_STEP}" aria-label="Subir peso serie ${si + 1}">+</button>
     </div>
     <div class="log-field">
-      <button class="step" type="button" data-step data-i="${i}" data-field="reps" data-delta="-1" aria-label="Bajar reps">−</button>
-      <span class="log-box"><input id="reps-${i}" class="log-input" type="number" inputmode="numeric" min="0" step="1" value="${rv}" placeholder="reps" data-k="load" data-i="${i}" data-field="reps" aria-label="Repeticiones"><span class="log-unit">rps</span></span>
-      <button class="step" type="button" data-step data-i="${i}" data-field="reps" data-delta="1" aria-label="Subir reps">+</button>
+      <button class="step" type="button" data-step data-i="${i}" data-s="${si}" data-field="reps" data-delta="-1" aria-label="Bajar reps serie ${si + 1}">−</button>
+      <span class="log-box"><input class="log-input" type="number" inputmode="numeric" min="0" step="1" value="${rv}" placeholder="reps" data-k="set" data-i="${i}" data-s="${si}" data-field="reps" aria-label="Reps serie ${si + 1}"><span class="log-unit">rps</span></span>
+      <button class="step" type="button" data-step data-i="${i}" data-s="${si}" data-field="reps" data-delta="1" aria-label="Subir reps serie ${si + 1}">+</button>
     </div>
+    <label class="set-rir"><span>RIR</span><input class="log-input" type="number" inputmode="numeric" min="0" max="10" step="1" value="${rr}" placeholder="—" data-k="set" data-i="${i}" data-s="${si}" data-field="rir" aria-label="RIR serie ${si + 1}"></label>
+    <select class="set-type" data-k="set" data-i="${i}" data-s="${si}" data-field="type" aria-label="Tipo de serie ${si + 1}">${opts}</select>
+    ${count > 1 ? `<button class="set-del" type="button" data-delset data-i="${i}" data-s="${si}" aria-label="Eliminar serie ${si + 1}">✕</button>` : ''}
   </div>`;
 }
 
 /** Pista de récord histórico del ejercicio (progreso de sobrecarga). */
 function bestRow(i, e){
   const best = (bests[bestKeyFor(i, e)] || {}).w || 0;
-  const cur  = (loads[exKey(i)] || {}).w || 0;
+  const cur  = (topSet(setsMap[exKey(i)]) || {}).w || 0;
   const isPr = cur && cur >= best;
   return `<div class="best ${isPr ? 'pr' : ''}" id="best-${i}">${bestCueContent(best, cur)}</div>`;
 }
@@ -694,9 +942,72 @@ function updateBestCue(i){
   const e = visibleEx(SCHEDULE[current])[i];
   if(!e) return;
   const best = (bests[bestKeyFor(i, e)] || {}).w || 0;
-  const cur  = (loads[exKey(i)] || {}).w || 0;
+  const cur  = (topSet(setsMap[exKey(i)]) || {}).w || 0;
   el.classList.toggle('pr', !!(cur && cur >= best));
   el.innerHTML = bestCueContent(best, cur);
+}
+
+/* --- 1RM ESTIMADO (Epley) · métrica oficial del spec §56 ---
+   Primer ladrillo del "motor": una primitiva pura + su render en vivo.
+   NO toca datos ni el esquema; solo lee la carga ya registrada. --- */
+/** 1RM estimado = peso × (1 + reps/30). Devuelve 0 si faltan datos. */
+function epley1RM(w, reps){
+  const weight = +w || 0, r = +reps || 0;
+  return (weight > 0 && r > 0) ? weight * (1 + r / 30) : 0;
+}
+/** Texto de la línea de 1RM a partir de un 1RM ya calculado. */
+function oneRmLine(rm){
+  return rm > 0
+    ? `📈 1RM estimado: <b>${fmtKg(rm)} kg</b>`
+    : '📈 Registra peso y reps para ver tu 1RM estimado';
+}
+/** Línea de 1RM estimado bajo cada ejercicio: mejor 1RM entre sus series. */
+function oneRmRow(i){
+  return `<div class="orm" id="orm-${i}">${oneRmLine(best1RM(setsMap[exKey(i)]))}</div>`;
+}
+/** Refresca el 1RM en vivo al cambiar cualquier serie (sin re-render del día). */
+function updateOneRepMax(i){
+  const el = document.getElementById('orm-' + i);
+  if(el) el.innerHTML = oneRmLine(best1RM(setsMap[exKey(i)]));
+}
+
+/** Mini-curva SVG del peso a lo largo de las sesiones (FASE 4, sin dependencias).
+    Etiqueta el primer y el último peso: se lee de un vistazo "de X a Y". */
+function svgExerciseCurve(hist){
+  if(!hist || !hist.length) return '';
+  const W=264, H=94, padL=10, padR=12, padT=16, padB=14;
+  const vals=hist.map(h=>h.w), max=Math.max(...vals), min=Math.min(...vals), span=Math.max(1, max-min), n=hist.length;
+  const xAt=i=> padL + (n===1 ? (W-padL-padR)/2 : i*(W-padL-padR)/(n-1));
+  const yAt=v=> H-padB - ((v-min)/span)*(H-padT-padB);
+  const pts=hist.map((h,i)=>`${xAt(i).toFixed(1)},${yAt(h.w).toFixed(1)}`);
+  const line = n>1 ? `<polyline class="exc-line" points="${pts.join(' ')}"/>` : '';
+  const dots = hist.map((h,i)=>`<circle class="exc-dot${i===n-1?' last':''}" cx="${xAt(i).toFixed(1)}" cy="${yAt(h.w).toFixed(1)}" r="${i===n-1?3.6:2.4}"/>`).join('');
+  const f=hist[0], l=hist[n-1];
+  const firstLbl=`<text class="exc-lbl" x="${xAt(0).toFixed(1)}" y="${(yAt(f.w)-6).toFixed(1)}" text-anchor="${n===1?'middle':'start'}">${fmtKg(f.w)}</text>`;
+  const lastLbl = n>1 ? `<text class="exc-lbl last" x="${xAt(n-1).toFixed(1)}" y="${(yAt(l.w)-6).toFixed(1)}" text-anchor="end">${fmtKg(l.w)}</text>` : '';
+  return `<svg class="exc-chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Curva de peso por sesión">${line}${dots}${firstLbl}${lastLbl}</svg>`;
+}
+
+/** Historial del ejercicio en el tiempo: curva de peso + resumen "de X a Y" + últimas
+    sesiones. Es el "me veo reflejado": entras a un ejercicio y ves tu evolución real. */
+function historyDetails(i, e){
+  if(!e || !e.id) return '';
+  const hist = exerciseHistory(current, e.id);
+  if(!hist.length){
+    return `<details class="acc"><summary><span class="acc-ico">📈</span> Historial</summary>
+      <p class="hist-empty">Aún sin historial. Registra hoy y aquí verás tu evolución sesión a sesión.</p></details>`;
+  }
+  const first=hist[0], last=hist[hist.length-1], diff=last.w-first.w;
+  const delta = hist.length>1
+    ? `<div class="hist-delta ${diff>=0?'up':'down'}">${diff>=0?'▲':'▼'} ${diff>=0?'Subiste':'Bajaste'} <b>${fmtKg(Math.abs(diff))} kg</b> desde ${first.date.slice(5).replace('-','/')} · ${fmtKg(first.w)} → ${fmtKg(last.w)} kg</div>`
+    : `<div class="hist-delta">Primer registro: <b>${fmtKg(first.w)} kg</b>. Registra otra sesión para ver tu curva.</div>`;
+  const bestW = (bests[bestKeyFor(i, e)] || {}).w || 0;
+  const rows = hist.slice(-8).map(h => {
+    const isPr = h.w > 0 && h.w >= bestW;
+    return `<li${isPr ? ' class="pr"' : ''}><span>${h.date.slice(5).replace('-','/')}</span><b>${fmtKg(h.w)} kg</b> × ${h.reps || '—'}${isPr ? ' 🏆' : ''}</li>`;
+  }).join('');
+  return `<details class="acc"><summary><span class="acc-ico">📈</span> Historial · ${hist.length}</summary>
+    ${svgExerciseCurve(hist.slice(-10))}${delta}<ul class="hist-list">${rows}</ul></details>`;
 }
 
 /** Nota rápida colapsable (se abre sola si ya hay texto). */
@@ -734,6 +1045,7 @@ function onFieldChange(e){
 
   if(k === 'done'){
     done[key] = el.checked;
+    if(el.checked) ensureSessionStarted(current);
     const card = el.closest('.ex');
     if(card) card.classList.toggle('done', el.checked);
     updateProgress();
@@ -744,16 +1056,29 @@ function onFieldChange(e){
         if(ex) startRest(parseRestSeconds(ex.d));
       }
     }
-  } else if(k === 'load'){
-    let num = parseFloat(el.value);
-    if(isNaN(num) || num < 0) num = 0;
-    (loads[key] || (loads[key] = { w:0, reps:0 }))[el.dataset.field] = num;
-    if(el.dataset.field === 'w'){
-      const ex = visibleEx(SCHEDULE[current])[i];
-      const bk = bestKeyFor(i, ex);
-      if(num > ((bests[bk] || {}).w || 0)) bests[bk] = { w: num };  // récord nuevo
-      updateBestCue(i);
+  } else if(k === 'set'){
+    ensureSessionStarted(current);
+    const si = +el.dataset.s, field = el.dataset.field;
+    const arr = (setsMap[key] || (setsMap[key] = []));
+    const row = (arr[si] || (arr[si] = { w:0, reps:0, rir:'', type:'efectiva' }));
+    if(field === 'type'){
+      row.type = el.value || 'efectiva';
+      const rowEl = el.closest('.setrow');
+      if(rowEl) rowEl.classList.toggle('warm', !isEffective(row.type));
+    } else if(field === 'rir'){
+      row.rir = el.value === '' ? '' : Math.max(0, parseInt(el.value, 10) || 0);
+    } else {
+      let num = parseFloat(el.value);
+      if(isNaN(num) || num < 0) num = 0;
+      row[field] = num;
     }
+    // Récord por peso, solo series efectivas, con fecha (spec §61).
+    if(field === 'w' && isEffective(row.type)){
+      const ex = visibleEx(SCHEDULE[current])[i], bk = bestKeyFor(i, ex);
+      if(row.w > ((bests[bk] || {}).w || 0)) bests[bk] = { w: row.w, reps: row.reps || 0, date: dateOfDay(current) };
+    }
+    updateBestCue(i);
+    updateOneRepMax(i);
     updateVolume();
   } else if(k === 'note'){
     notes[key] = el.value;
@@ -770,15 +1095,50 @@ function onViewClick(e){
   const rest = e.target.closest('[data-rest]');
   if(rest){ startRest(+rest.dataset.rest); return; }
 
+  const add = e.target.closest('[data-addset]');
+  if(add){ addSet(+add.dataset.i); return; }
+
+  const del = e.target.closest('[data-delset]');
+  if(del){ removeSet(+del.dataset.i, +del.dataset.s); return; }
+
   const btn = e.target.closest('[data-step]');
   if(!btn) return;
-  const i = +btn.dataset.i, field = btn.dataset.field, delta = parseFloat(btn.dataset.delta);
-  const input = document.getElementById((field === 'w' ? 'w-' : 'reps-') + i);
+  const i = +btn.dataset.i, si = +btn.dataset.s, field = btn.dataset.field, delta = parseFloat(btn.dataset.delta);
+  const input = document.querySelector(`.setrow[data-row="${si}"] input[data-i="${i}"][data-s="${si}"][data-field="${field}"]`);
+  if(!input) return;
   let num = parseFloat(input.value);
   if(isNaN(num)) num = 0;
   num = Math.max(0, +(num + delta).toFixed(2));
   input.value = (field === 'w') ? num : Math.round(num);
   input.dispatchEvent(new Event('input', { bubbles:true }));  // -> pasa por onFieldChange
+}
+
+/** Añade una serie (hereda peso/reps de la anterior: menos toques, spec §106). */
+function addSet(i){
+  const key = exKey(i);
+  const arr = (setsMap[key] || (setsMap[key] = []));
+  if(!arr.length) arr.push({ w:0, reps:0, rir:'', type:'efectiva' });   // materializa la fila visible
+  const prev = arr[arr.length - 1] || {};
+  arr.push({ w: prev.w || 0, reps: prev.reps || 0, rir:'', type:'efectiva' });
+  refreshSets(i);
+  updateBestCue(i); updateOneRepMax(i); updateVolume();
+  Store.save();
+}
+
+/** Elimina una serie y re-pinta las filas de ese ejercicio. */
+function removeSet(i, si){
+  const arr = setsMap[exKey(i)];
+  if(!Array.isArray(arr)) return;
+  arr.splice(si, 1);
+  refreshSets(i);
+  updateBestCue(i); updateOneRepMax(i); updateVolume();
+  Store.save();
+}
+
+/** Re-genera solo el HTML de las series de un ejercicio desde setsMap. */
+function refreshSets(i){
+  const host = document.getElementById('sets-' + i);
+  if(host) host.innerHTML = setRows(i);
 }
 
 /* ----------------------------------------------------------------
@@ -788,6 +1148,7 @@ let restTimerId = null, restLeft = 0, restEndId = null, restHideId = null;
 function startRest(seconds){
   const bar = document.getElementById('restTimer');
   if(!bar) return;
+  if(restDefault > 0) seconds = restDefault;   // Fase E: descanso por defecto configurable
   // Cancela cualquier temporizador pendiente (evita que un descanso anterior
   // oculte el nuevo a mitad de camino: ese era el bug del "reloj que no se va").
   clearInterval(restTimerId); clearTimeout(restEndId); clearTimeout(restHideId);
@@ -854,6 +1215,109 @@ function confettiBurst(){
   setTimeout(()=>{ layer.hidden = true; layer.innerHTML = ''; }, 2200);
 }
 
+/* ----------------------------------------------------------------
+   7h. SESIÓN ACTIVA + RECUPERACIÓN  (Fase C · spec §16/§25/§48/§64/§65)
+   ------------------------------------------------------------
+   El día ya se auto-guarda serie a serie; aquí añadimos el CICLO DE VIDA
+   de la sesión (inicio/fin + duración), el resumen final con snapshot y
+   la recuperación de un entreno sin finalizar. Los metadatos viven en
+   sessions[fecha] y syncSessionsFromWorking los preserva.
+   ---------------------------------------------------------------- */
+/** Marca el inicio de la sesión del día d una sola vez (al haber actividad). */
+function ensureSessionStarted(d){
+  const date = dateOfDay(d);
+  const s = (sessions[date] || (sessions[date] = { dayType:d, full:{ex:{},note:''}, express:{ex:{},note:''}, startedAt:null, finishedAt:null, snapshot:null }));
+  if(!s.startedAt) s.startedAt = Date.now();
+}
+/** ¿El día d tiene alguna serie efectiva o ejercicio marcado? */
+function dayHasProgress(d){
+  for(const key in setsMap){ const m = key.match(/^(x?)(\d+)-/); if(m && +m[2] === d && setsVolume(setsMap[key])) return true; }
+  for(const key in done){ if(done[key]){ const m = key.match(/^(x?)(\d+)-/); if(m && +m[2] === d) return true; } }
+  return false;
+}
+/** Formatea una duración en ms: "1 h 18 min" / "42 min". */
+function fmtDuration(ms){
+  const min = Math.max(0, Math.round(ms / 60000)), h = Math.floor(min / 60), m = min % 60;
+  return h ? `${h} h ${m} min` : `${m} min`;
+}
+/** Snapshot permanente del entreno (spec §65): resumen para cargar el dashboard rápido. */
+function buildSnapshot(d, s){
+  const day = SCHEDULE[d];
+  let sets = 0, exercises = 0, records = 0, topRm = 0;
+  visibleEx(day).forEach((e, i) => {
+    const arr = setsMap[exKey(i)];
+    const c = effectiveSetCount(arr);
+    if(c){ exercises++; sets += c; }
+    const rm = best1RM(arr); if(rm > topRm) topRm = rm;
+    const cur = (topSet(arr) || {}).w || 0, best = (bests[bestKeyFor(i, e)] || {}).w || 0;
+    if(cur > 0 && cur >= best) records++;
+  });
+  const dur = (s.startedAt && s.finishedAt) ? (s.finishedAt - s.startedAt) : 0;
+  return { date: dateOfDay(d), dayType:d, volume: dayVolumeAnyMode(d), sets, exercises, records, oneRm: Math.round(topRm), durationMs: dur };
+}
+/** Finaliza la sesión del día actual: sella la hora, calcula el snapshot y muestra el resumen. */
+function finishCurrentSession(){
+  const d = current;
+  if(!dayHasProgress(d)) return;                 // nada que finalizar todavía
+  ensureSessionStarted(d);
+  const date = dateOfDay(d), s = sessions[date];
+  s.finishedAt = Date.now();
+  s.snapshot = buildSnapshot(d, s);
+  Store.save();
+  stopRest();
+  renderSummary(d, s.snapshot);
+  openPanel('summary');
+  confettiBurst();
+}
+/** Resumen final del entreno (spec §43/§163). */
+function renderSummary(d, snap){
+  const host = document.getElementById('summary'); if(!host) return;
+  const day = SCHEDULE[d] || {};
+  const curWk = weekId();
+  const prev = weeklyVolumes().filter(w => w.weekId < curWk).slice(-1)[0];
+  const weekNow = weekVolume();
+  let cmp = '';
+  if(prev && prev.volume > 0){
+    const diff = weekNow - prev.volume, pct = Math.round(diff / prev.volume * 100);
+    cmp = `<div class="sum-cmp ${diff >= 0 ? 'up' : 'down'}">${diff >= 0 ? '▲' : '▼'} ${diff >= 0 ? '+' : ''}${pct}% volumen vs. semana anterior</div>`;
+  }
+  host.innerHTML = `
+    <div class="sum-hero"><div class="sum-emoji">🎉</div>
+      <div class="sum-title">Entrenamiento completado</div>
+      <div class="sum-sub">${day.type || ''} · ${day.label || ''}</div></div>
+    <div class="sum-grid">
+      <div class="sum-card"><b>${fmtDuration(snap.durationMs)}</b><span>duración</span></div>
+      <div class="sum-card"><b>${fmtKg(snap.volume)}</b><span>kg volumen</span></div>
+      <div class="sum-card"><b>${snap.sets}</b><span>series</span></div>
+      <div class="sum-card"><b>${snap.exercises}</b><span>ejercicios</span></div>
+      <div class="sum-card"><b>${snap.oneRm ? fmtKg(snap.oneRm) : '—'}</b><span>1RM máx</span></div>
+      <div class="sum-card${snap.records ? ' gold' : ''}"><b>${snap.records}</b><span>récords 🏆</span></div>
+    </div>
+    ${cmp}
+    <button class="panel-close" onclick="closePanels()">Cerrar ✕</button>`;
+}
+/** Recuperación automática (spec §48/§210): sesión iniciada y SIN finalizar de un
+    día anterior de ESTA semana (la de hoy no se avisa: estás en ella). */
+function checkRecovery(){
+  const today = ymd(now), wk = weekId();
+  let cand = null;
+  for(const date in sessions){
+    const s = sessions[date];
+    if(s.startedAt && !s.finishedAt && date >= wk && date < today && (!cand || date > cand.date)) cand = { date, s };
+  }
+  if(!cand) return;
+  const day = SCHEDULE[cand.s.dayType] || {};
+  const bar = document.createElement('div');
+  bar.className = 'recovery';
+  bar.innerHTML = `<div class="rec-txt">🔄 <b>Entrenamiento sin finalizar</b>
+      <small>${day.type || ''} · ${cand.date.slice(5).replace('-', '/')}</small></div>
+    <div class="rec-actions"><button class="rec-go" type="button">Continuar</button>
+      <button class="rec-skip" type="button">Descartar</button></div>`;
+  bar.querySelector('.rec-go').addEventListener('click', () => { bar.remove(); if(typeof cand.s.dayType === 'number') select(cand.s.dayType); });
+  bar.querySelector('.rec-skip').addEventListener('click', () => { cand.s.finishedAt = Date.now(); Store.save(); bar.remove(); });
+  document.body.appendChild(bar);
+}
+
 /** Crece el textarea con su contenido (sin scroll interno). */
 function autoGrow(t){ t.style.height = 'auto'; t.style.height = t.scrollHeight + 'px'; }
 
@@ -886,10 +1350,11 @@ function updateVolume(){
   if(!el) return;
   const v = dayVolume(current);
   let extra = '';
-  const past = Object.keys(history).sort();
-  if(past.length){
-    const prev = history[past[past.length - 1]].volume || 0;
-    const weekNow = weekVolume(loads);
+  const curWk = weekId();
+  const prevWeeks = weeklyVolumes().filter(w => w.weekId < curWk);
+  if(prevWeeks.length){
+    const prev = prevWeeks[prevWeeks.length - 1].volume || 0;
+    const weekNow = weekVolume();
     if(prev > 0){
       const diff = weekNow - prev;
       const sign = diff >= 0 ? '+' : '−';
@@ -914,16 +1379,54 @@ function openPanel(id){
   closePanels();
   if(id === 'progress') renderProgress();   // genera las gráficas al abrir
   if(id === 'calendar') renderCalendar();   // genera los enlaces de recordatorio
+  if(id === 'settings') renderSettings();   // genera el panel de ajustes
   const p = document.getElementById(id);
   p.hidden = false;
   p.scrollIntoView({behavior:'smooth',block:'start'});
 }
 
 function closePanels(){
-  ['progress','calendar'].forEach(id=>{
+  ['progress','calendar','summary','settings'].forEach(id=>{
     const p = document.getElementById(id);
     if(p) p.hidden = true;
   });
+}
+
+/* ----------------------------------------------------------------
+   7i. CONFIGURACIÓN  (Fase E · tema, descanso por defecto, datos)
+   ---------------------------------------------------------------- */
+/** Aplica el tema guardado (claro/oscuro) al documento y a la barra del sistema. */
+function applyTheme(){
+  document.documentElement.setAttribute('data-theme', theme);
+  const m = document.querySelector('meta[name="theme-color"]');
+  if(m) m.setAttribute('content', theme === 'light' ? '#F4F5F7' : '#0E0F13');
+}
+/** Fija el tema, lo aplica y lo persiste. */
+function setTheme(t){ theme = (t === 'light') ? 'light' : 'dark'; applyTheme(); syncSettings(); Store.save(); }
+/** Fija el descanso por defecto (0 = usar el sugerido por cada ejercicio). */
+function setRestDefault(s){ restDefault = +s || 0; syncSettings(); Store.save(); }
+/** Re-pinta el panel de ajustes si está abierto (refleja el estado activo). */
+function syncSettings(){ const p = document.getElementById('settings'); if(p && !p.hidden) renderSettings(); }
+/** Panel de configuración (spec §47/§100/§108). */
+function renderSettings(){
+  const host = document.getElementById('settings'); if(!host) return;
+  const presets = [0, 30, 60, 90, 120, 180];
+  host.innerHTML = `
+    <h3>Apariencia</h3>
+    <div class="seg" role="group" aria-label="Tema">
+      <button class="seg-btn ${theme === 'dark' ? 'on' : ''}" onclick="setTheme('dark')">🌙 Oscuro</button>
+      <button class="seg-btn ${theme === 'light' ? 'on' : ''}" onclick="setTheme('light')">☀️ Claro</button>
+    </div>
+    <h3>Descanso por defecto</h3>
+    <p><small>Al marcar una serie el cronómetro usará este tiempo. «Del plan» respeta el descanso sugerido por cada ejercicio.</small></p>
+    <div class="chip-row">${presets.map(s => `<button class="chipbtn ${restDefault === s ? 'on' : ''}" onclick="setRestDefault(${s})">${s === 0 ? 'Del plan' : s + 's'}</button>`).join('')}</div>
+    <h3>Tus datos</h3>
+    <div class="export-row">
+      <button class="pbtn" onclick="exportJSON()">💾 Respaldo</button>
+      <button class="pbtn" onclick="importJSON()">♻️ Restaurar</button>
+      <button class="pbtn" onclick="exportCSV()">📥 CSV</button>
+    </div>
+    <button class="panel-close" onclick="closePanels()">Cerrar ✕</button>`;
 }
 
 /* ----------------------------------------------------------------
@@ -942,11 +1445,15 @@ function download(content, filename, type){
 /** Filas de estadísticas: un ejercicio por récord registrado. */
 function statsRows(){
   return Object.keys(bests).map(k => {
-    const [d, bi] = k.split('-').map(Number);
-    const ex = SCHEDULE[d] && SCHEDULE[d].ex && SCHEDULE[d].ex[bi];
+    const d = +k.slice(0, k.indexOf('-'));
+    const slug = k.slice(k.indexOf('-') + 1);
+    const ex = resolveBySlug(d, slug, 'full') || resolveBySlug(d, slug, 'express');
     if(!ex) return null;
-    const ld = loads[`${d}-${bi}`] || {};
-    return { dia: SCHEDULE[d].label, ejercicio: ex.n, record: bests[k].w, peso: ld.w || 0, reps: ld.reps || 0 };
+    const b = bests[k] || {};
+    const hist = exerciseHistory(d, slug);
+    const last = hist.length ? hist[hist.length - 1] : null;   // última sesión registrada
+    return { dia: (SCHEDULE[d] || {}).label || '', ejercicio: ex.n, record: b.w || 0,
+             recDate: b.date || '', peso: last ? last.w : 0, reps: last ? last.reps : 0 };
   }).filter(Boolean).sort((a, b) => b.record - a.record);
 }
 
@@ -955,26 +1462,203 @@ function exportCSV(){
   const lines = ['Dia,Ejercicio,Record (kg),Ultimo peso (kg),Ultimas reps'];
   statsRows().forEach(r =>
     lines.push([r.dia, '"' + r.ejercicio.replace(/"/g, '""') + '"', r.record, r.peso, r.reps].join(',')));
-  lines.push('', 'Semana (lunes),Volumen total (kg),Ejercicios completados');
-  Object.keys(history).sort().forEach(k =>
-    lines.push([k, history[k].volume || 0, history[k].completed || 0].join(',')));
-  lines.push([weekId() + ' (actual)', weekVolume(loads), Object.values(done).filter(Boolean).length].join(','));
+  lines.push('', 'Semana (lunes),Volumen total (kg)');
+  const curWk = weekId();
+  weeklyVolumes().filter(w => w.weekId < curWk).forEach(w => lines.push([w.weekId, w.volume].join(',')));
+  lines.push([curWk + ' (actual)', weekVolume()].join(','));
   download('﻿' + lines.join('\r\n'), 'entreno-v-estadisticas.csv', 'text/csv;charset=utf-8');
 }
 
 /** Exporta un respaldo JSON completo (para no perder nada / cambiar de móvil). */
 function exportJSON(){
-  download(localStorage.getItem(Store.KEY) || '{}', 'entreno-v-respaldo.json', 'application/json');
+  download(DB.read(Store.KEY) || '{}', 'entreno-v-respaldo.json', 'application/json');
+}
+
+/**
+ * FASE 0 — Restaurar respaldo (el seguro de vida).
+ * Lee un .json descargado con "Respaldo" y lo vuelve a cargar. Si el navegador
+ * limpia localStorage (falta de espacio, borrar datos del sitio) o cambias de
+ * móvil, recuperas todo. Valida el archivo, PIDE CONFIRMACIÓN y recarga.
+ * Detecta el esquema: un respaldo v2 se escribe tal cual; uno v1 se escribe en
+ * su clave y se borra la v2 para que la app lo MIGRE al recargar.
+ */
+function importJSON(){
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'application/json,.json';
+  input.addEventListener('change', () => {
+    const file = input.files && input.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onerror = () => alert('No pude leer el archivo. Inténtalo de nuevo.');
+    reader.onload = () => {
+      let data;
+      try{ data = JSON.parse(reader.result); }
+      catch(_){ alert('Ese archivo no es un respaldo válido (no es un .json legible).'); return; }
+      if(!isValidBackup(data)){
+        alert('Ese archivo no parece un respaldo de Entreno V.\nUsa el .json que descargaste con el botón "Respaldo".');
+        return;
+      }
+      if(!confirm('Esto REEMPLAZA tus datos actuales por los del respaldo.\n¿Quieres continuar?')) return;
+      try{
+        if(data.schemaVersion === 3){
+          DB.write(Store.KEY, JSON.stringify(data));            // respaldo v3: tal cual
+        }else if(data.schemaVersion === 2){
+          DB.write(Store.KEY_V2, JSON.stringify(data));         // respaldo v2: en su clave
+          DB.remove(Store.KEY);                                // fuerza migración v2→v3 al recargar
+        }else{
+          DB.write(Store.KEY_V1, JSON.stringify(data));         // respaldo v1: en su clave
+          DB.remove(Store.KEY);
+          DB.remove(Store.KEY_V2);                             // fuerza migración v1→…→v3
+        }
+      }
+      catch(_){ alert('No pude guardar el respaldo (almacenamiento no disponible en este navegador).'); return; }
+      alert('✅ Respaldo restaurado. La app se recargará para aplicarlo.');
+      location.reload();
+    };
+    reader.readAsText(file);
+  });
+  input.click();
+}
+
+/** Valida, sin ser estricto, que un objeto parece un estado de Entreno V. */
+function isValidBackup(d){
+  if(!d || typeof d !== 'object' || Array.isArray(d)) return false;
+  if('schemaVersion' in d) return true;                                        // respaldo v2 (futuro)
+  return ['week','done','loads','notes','bests','history'].some(k => k in d);  // respaldo v1
+}
+
+/** Sección "Progreso por ejercicio" (FASE 4): por cada ejercicio con 2+ sesiones,
+    su curva de peso y cuánto subió. Es la gráfica estrella del "me veo reflejado". */
+function progressByExerciseHtml(){
+  const items = [];
+  for(const d of ORDER){
+    const day = SCHEDULE[d]; if(day.rest || !day.ex) continue;
+    day.ex.forEach(e => { const h = exerciseHistory(d, e.id); if(h.length >= 2) items.push({ e, h }); });
+  }
+  if(!items.length){
+    return '<p><small>Registra un mismo ejercicio en 2 o más sesiones y aquí verás su curva de progreso en el tiempo. 📈</small></p>';
+  }
+  items.sort((a, b) => b.h.length - a.h.length);   // primero los que más historial tienen
+  return items.slice(0, 8).map(({ e, h }) => {
+    const first = h[0], last = h[h.length - 1], diff = last.w - first.w;
+    const cls = diff > 0 ? 'up' : diff < 0 ? 'down' : 'flat';
+    const sign = diff > 0 ? '+' : diff < 0 ? '−' : '±';
+    return `<div class="exprog">
+      <div class="exprog-head"><span class="exprog-name">${e.n}</span>
+        <span class="exprog-delta ${cls}">${sign}${fmtKg(Math.abs(diff))} kg</span></div>
+      ${svgExerciseCurve(h.slice(-10))}</div>`;
+  }).join('');
+}
+
+/* --- DASHBOARD 2.0 (Fase D) · constancia, frecuencia muscular e insights --- */
+/** Estadísticas de constancia (spec §80): racha de semanas + conteos de sesiones. */
+function consistencyStats(){
+  const active = {};
+  weeklyVolumes().forEach(w => { if(w.volume > 0) active[w.weekId] = true; });
+  if(weekVolume() > 0) active[weekId()] = true;
+  let streak = 0, cursor = weekId();
+  while(active[cursor]){ streak++; cursor = ymd(addDays(parseYmd(cursor), -7)); }
+  const ym = ymd(now).slice(0, 7), yy = ymd(now).slice(0, 4);
+  let month = 0, year = 0, total = 0;
+  for(const date in sessions){ if(sessionVolume(sessions[date]) > 0){ total++; if(date.slice(0,7) === ym) month++; if(date.slice(0,4) === yy) year++; } }
+  return { streak, month, year, total };
+}
+/** Series efectivas por músculo esta semana (mapas de trabajo actuales). */
+function muscleSetsThisWeek(){
+  const out = {};
+  for(const key in setsMap){
+    const m = key.match(/^(x?)(\d+)-(\d+)$/); if(!m) continue;
+    const e = resolveExercise(+m[2], +m[3], m[1] === 'x'); if(!e || !e.m) continue;
+    const c = effectiveSetCount(setsMap[key]); if(!c) continue;
+    e.m.forEach(mu => { out[mu] = (out[mu] || 0) + c; });
+  }
+  return out;
+}
+/** Última fecha (YYYY-MM-DD) en que se entrenó cada músculo (todo el histórico). */
+function muscleLastTrained(){
+  const out = {};
+  for(const date in sessions){
+    const s = sessions[date];
+    ['full','express'].forEach(mode => {
+      const bag = s[mode] && s[mode].ex; if(!bag) return;
+      for(const slug in bag){
+        if(!setsVolume(bag[slug].sets)) continue;
+        const e = resolveBySlug(s.dayType, slug, mode); if(!e || !e.m) continue;
+        e.m.forEach(mu => { if(!out[mu] || date > out[mu]) out[mu] = date; });
+      }
+    });
+  }
+  return out;
+}
+/** "hoy" / "ayer" / "hace X d" a partir de una fecha YYYY-MM-DD. */
+function daysAgoLabel(date){
+  const diff = Math.round((parseYmd(ymd(now)) - parseYmd(date)) / 86400000);
+  return diff <= 0 ? 'hoy' : diff === 1 ? 'ayer' : `hace ${diff} d`;
+}
+/** Tabla de frecuencia muscular (spec §77): series esta semana + última vez. */
+function muscleFreqHtml(){
+  const setsBy = muscleSetsThisWeek(), lastBy = muscleLastTrained();
+  const muscles = Array.from(new Set([...Object.keys(setsBy), ...Object.keys(lastBy)]));
+  if(!muscles.length) return '<p><small>Registra series para ver la frecuencia por músculo.</small></p>';
+  muscles.sort((a, b) => (setsBy[b] || 0) - (setsBy[a] || 0));
+  return `<div class="mfreq">` + muscles.map(mu =>
+    `<div class="mfreq-row"><span class="mfreq-name">${MUSCLE_LABEL[mu] || mu}</span>
+      <span class="mfreq-sets">${setsBy[mu] || 0} series</span>
+      <span class="mfreq-last">${lastBy[mu] ? daysAgoLabel(lastBy[mu]) : '—'}</span></div>`).join('') + `</div>`;
+}
+/** Mensajes inteligentes basados en datos reales (spec §83). Nunca aleatorios. */
+function buildInsights(){
+  const out = [];
+  const curWk = weekId(), weekNow = weekVolume();
+  const prevs = weeklyVolumes().filter(w => w.weekId < curWk);
+  const prev = prevs.length ? prevs[prevs.length - 1].volume : 0;
+  const maxPrev = prevs.reduce((mx, w) => Math.max(mx, w.volume), 0);
+  if(weekNow > 0 && weekNow > maxPrev && maxPrev > 0){ out.push('🔥 Nuevo récord de volumen semanal.'); }
+  else if(prev > 0){
+    const diff = weekNow - prev, pct = Math.round(diff / prev * 100);
+    if(diff > 0) out.push(`📈 Llevas +${pct}% de volumen respecto a la semana pasada.`);
+    else if(diff < 0) out.push(`📉 Vas ${pct}% de volumen frente a la semana pasada.`);
+  }
+  const st = consistencyStats();
+  if(st.streak >= 2) out.push(`✅ Racha de ${st.streak} semanas entrenando. ¡Sigue así!`);
+  const last = muscleLastTrained();
+  let stale = null, staleDays = 10;
+  for(const mu in last){ const diff = Math.round((parseYmd(ymd(now)) - parseYmd(last[mu])) / 86400000); if(diff > staleDays){ staleDays = diff; stale = mu; } }
+  if(stale) out.push(`💤 Llevas ${staleDays} días sin entrenar ${(MUSCLE_LABEL[stale] || stale).toLowerCase()}.`);
+  if(!out.length) out.push('💡 Registra tus series y aquí verás análisis de tu progreso.');
+  return out.slice(0, 4);
+}
+/** Logros desbloqueables por datos reales (spec §32/§82). Discretos, no infantiles. */
+function buildAchievements(){
+  const st = consistencyStats();
+  let totalVol = weekVolume();
+  weeklyVolumes().filter(w => w.weekId < weekId()).forEach(w => totalVol += w.volume);
+  const prCount = Object.keys(bests).length;
+  return [
+    { icon:'🎯', label:'Primer entreno', ok: st.total >= 1 },
+    { icon:'🏆', label:'Primer récord',  ok: prCount >= 1 },
+    { icon:'🔥', label:'Racha ×2',       ok: st.streak >= 2 },
+    { icon:'💪', label:'10 sesiones',    ok: st.total >= 10 },
+    { icon:'🏋️', label:'10 t movidas',  ok: totalVol >= 10000 },
+    { icon:'⭐', label:'Racha ×4',       ok: st.streak >= 4 }
+  ];
+}
+function achievementsHtml(){
+  return `<div class="ach">` + buildAchievements().map(a =>
+    `<div class="ach-badge ${a.ok ? 'on' : ''}"><span class="ach-ico">${a.icon}</span><span>${a.label}</span></div>`).join('') + `</div>`;
 }
 
 function renderProgress(){
   const host = document.getElementById('progress');
   if(!host) return;
+  const cstats = consistencyStats();
+  const insights = buildInsights();
 
   // --- Resumen ---
   const rows = statsRows();
-  const weekNow = weekVolume(loads);
-  const sessions = ORDER.filter(d => !SCHEDULE[d].rest)
+  const weekNow = weekVolume();
+  const sessCount = ORDER.filter(d => !SCHEDULE[d].rest)
     .filter(d => SCHEDULE[d].ex.length && SCHEDULE[d].ex.every((_, i) => done[`${d}-${i}`])).length;
   const recordCount = Object.keys(bests).length;
 
@@ -988,15 +1672,17 @@ function renderProgress(){
     .map(k => ({ label: MUSCLE_LABEL[k] || k, value: mv[k], valText: fmtKg(mv[k]) }))
     .sort((a, b) => b.value - a.value).slice(0, 8);
 
-  // --- Tendencia (semanas archivadas + ahora) ---
-  const trend = Object.keys(history).sort()
-    .map(k => ({ label: k.slice(5).replace('-', '/'), value: history[k].volume || 0 }));
+  // --- Tendencia (semanas del histórico + resúmenes v1 + ahora) ---
+  const curWk = weekId();
+  const trend = weeklyVolumes().filter(w => w.weekId < curWk)
+    .map(w => ({ label: w.weekId.slice(5).replace('-', '/'), value: w.volume }));
   trend.push({ label: 'ahora', value: weekNow });
 
   // --- Récords (barras horizontales) ---
   const recRows = Object.keys(bests).map(k => {
-    const [d, bi] = k.split('-').map(Number);
-    const ex = SCHEDULE[d] && SCHEDULE[d].ex && SCHEDULE[d].ex[bi];
+    const d = +k.slice(0, k.indexOf('-'));
+    const slug = k.slice(k.indexOf('-') + 1);
+    const ex = resolveBySlug(d, slug, 'full') || resolveBySlug(d, slug, 'express');
     return ex ? { label: ex.n, value: bests[k].w, valText: fmtKg(bests[k].w) + ' kg' } : null;
   }).filter(Boolean).sort((a, b) => b.value - a.value).slice(0, 8);
 
@@ -1007,9 +1693,13 @@ function renderProgress(){
     <h3>Resumen de la semana</h3>
     <div class="stat-cards">
       <div class="scard k1"><b>${fmtKg(weekNow)}</b><span>kg volumen</span></div>
-      <div class="scard k2"><b>${sessions}</b><span>sesiones</span></div>
+      <div class="scard k2"><b>${sessCount}</b><span>sesiones</span></div>
       <div class="scard k3"><b>${recordCount}</b><span>récords</span></div>
+      <div class="scard k4"><b>${cstats.streak}</b><span>racha sem.</span></div>
     </div>
+    <div class="insights">${insights.map(t => `<div class="insight">${t}</div>`).join('')}</div>
+    <h3>Progreso por ejercicio</h3>
+    ${progressByExerciseHtml()}
     <h3>Volumen semanal</h3>
     <div class="chart-card">
       <div class="chart-cap"><b>${fmtKg(weekNow)}<span class="u">kg</span></b><span>esta semana</span></div>
@@ -1017,10 +1707,14 @@ function renderProgress(){
     </div>
     <h3>Constancia · últimas semanas</h3>
     ${heatHtml}
+    <h3>Logros</h3>
+    ${achievementsHtml()}
     <h3>Volumen por día</h3>
     <div class="chart-card">${svgBars(dias, 'volumen por día')}</div>
     <h3>Volumen por músculo</h3>
     ${muscleRows.length ? hBars(muscleRows, '--primary') : '<p><small>Registra pesos para ver el reparto por músculo.</small></p>'}
+    <h3>Frecuencia muscular</h3>
+    ${muscleFreqHtml()}
     <h3>Tus récords (peso máximo)</h3>
     ${recRows.length ? hBars(recRows, '--legs') : '<p><small>Registra pesos y aquí verás tus máximos por ejercicio.</small></p>'}
     <h3>Tabla de datos</h3>
@@ -1029,8 +1723,9 @@ function renderProgress(){
         ${rows.map(r => `<tr><td>${r.dia.slice(0,3)}</td><td>${r.ejercicio}</td><td>${fmtKg(r.record)}</td><td>${r.peso ? fmtKg(r.peso) + '×' + r.reps : '—'}</td></tr>`).join('')}
       </table></div>` : '<p><small>Registra pesos para llenar la tabla.</small></p>'}
     <div class="export-row">
-      <button class="pbtn" onclick="exportCSV()">📥 CSV (tabla)</button>
-      <button class="pbtn" onclick="exportJSON()">💾 Respaldo JSON</button>
+      <button class="pbtn" onclick="exportCSV()">📥 CSV</button>
+      <button class="pbtn" onclick="exportJSON()">💾 Respaldo</button>
+      <button class="pbtn" onclick="importJSON()">♻️ Restaurar</button>
     </div>
     <button class="panel-close" onclick="closePanels()">Cerrar ✕</button>`;
 }
@@ -1161,6 +1856,7 @@ function registerSW(){
 /* ----------------------------------------------------------------
    9. ARRANQUE
    ---------------------------------------------------------------- */
+applyTheme();                              // Fase E: aplica el tema guardado antes de pintar
 renderWeek();
 renderBanner();
 syncExpressBtn();                          // refleja la preferencia guardada en el botón Express
@@ -1169,3 +1865,4 @@ renderDays();
 render();
 registerSW();
 Store.save(); // fija la semana en curso (y archiva la anterior si cambió)
+checkRecovery();  // Fase C: avisa de un entrenamiento sin finalizar de esta semana

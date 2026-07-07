@@ -320,7 +320,7 @@ const Store = {
       syncSessionsFromWorking();
       const json = JSON.stringify({
         schemaVersion: 3,
-        ui: { current, studyMode, bannerHidden, theme, restDefault, goals },
+        ui: { current, studyMode, bannerHidden, theme, restDefault, goals, unit },
         sessions,
         bests,
         legacyHistory
@@ -420,6 +420,7 @@ function applyState(st){
   theme        = (ui.theme === 'light') ? 'light' : 'dark';
   restDefault  = +ui.restDefault || 0;
   goals        = Object.assign({ sessions:0, volume:0 }, (ui.goals || {}));
+  unit         = (ui.unit === 'lb') ? 'lb' : 'kg';
   Object.assign(sessions, (st && st.sessions) || {});
   Object.assign(bests, (st && st.bests) || {});
   Object.assign(legacyHistory, (st && st.legacyHistory) || {});
@@ -628,6 +629,7 @@ const notes = {};     // { "<key>": "texto" }  +  { "sess-<x?><dia>": "feedback"
 const bests = {};     // { "<dia>-<id>": { w, reps, date } }  récord con fecha
 let current = todayDow, studyMode = false, bannerHidden = false, theme = 'dark', restDefault = 0, editMode = false;
 let goals = { sessions:0, volume:0 };   // metas semanales (spec §81): 0 = sin meta
+let unit = 'kg';                        // unidad de PESO mostrada (spec §22/§108). Siempre se GUARDA en kg.
 Store.load();         // hidrata todo lo anterior (migra v1->v2 la primera vez)
 
 /* ----------------------------------------------------------------
@@ -728,10 +730,23 @@ function weekVolume(map){
   return Math.round(total);
 }
 
-/** Formatea kg con separador de miles en español. */
-function fmtKg(n){ return Math.round(n).toLocaleString('es-ES'); }
-/** Formatea un peso conservando el medio kilo (72,5) — para pesos individuales, no volumen. */
-function fmtWeight(n){ return (+n || 0).toLocaleString('es-ES', { maximumFractionDigits:1 }); }
+/* --- Unidad de peso (spec §22/§108): SIEMPRE se guarda en kg; solo cambia la
+   visualización y la entrada. Convertimos en un único punto (formateadores +
+   helpers) para que todos los números se muestren en la unidad elegida. --- */
+const LB_PER_KG = 2.2046226218;
+/** ${wUnit()} (almacenado) -> número en la unidad de visualización. */
+function toDisp(kg){ return unit === 'lb' ? (+kg || 0) * LB_PER_KG : (+kg || 0); }
+/** número en la unidad de visualización -> ${wUnit()} (para guardar). */
+function toKg(disp){ return unit === 'lb' ? (+disp || 0) / LB_PER_KG : (+disp || 0); }
+/** Etiqueta de la unidad actual ("kg" | "lb"). */
+function wUnit(){ return unit === 'lb' ? 'lb' : 'kg'; }
+/** Incremento del stepper en la unidad de visualización (2,5 kg ≈ 5 lb). */
+function weightStepDisp(){ return unit === 'lb' ? 5 : WEIGHT_STEP; }
+
+/** Formatea una cantidad de peso/volumen (guardada en kg) en la unidad elegida, con miles. */
+function fmtKg(n){ return Math.round(toDisp(n)).toLocaleString('es-ES'); }
+/** Igual que fmtKg pero conservando el medio (72,5) — para pesos individuales. */
+function fmtWeight(n){ return toDisp(n).toLocaleString('es-ES', { maximumFractionDigits:1 }); }
 
 /** Retrasa la ejecución: agrupa ráfagas de cambios en una sola escritura. */
 function debounce(fn, ms){ let t; return (...a)=>{ clearTimeout(t); t = setTimeout(()=>fn(...a), ms); }; }
@@ -747,8 +762,8 @@ function bestKeyFor(i, e){ return `${current}-${(e && e.id) || i}`; }
 /** Texto de la pista de récord para un ejercicio. */
 function bestCueContent(best, cur){
   if(!best) return '⚡ Registra el peso para marcar tu primer récord';
-  if(cur && cur >= best) return `🏆 ¡Récord nuevo! <b>${fmtKg(cur)} kg</b>`;
-  return `Récord: <b>${fmtKg(best)} kg</b> · te faltan ${fmtKg(best - cur)} kg`;
+  if(cur && cur >= best) return `🏆 ¡Récord nuevo! <b>${fmtKg(cur)} ${wUnit()}</b>`;
+  return `Récord: <b>${fmtKg(best)} ${wUnit()}</b> · te faltan ${fmtKg(best - cur)} ${wUnit()}`;
 }
 
 /** Segundos de descanso a partir del texto: "2 min"->120, "90 s"->90, "2–3 min"->150. */
@@ -872,7 +887,7 @@ function consistencyHeatmap(weekNow){
   const level = v => v <= 0 ? 0 : v < max*0.25 ? 1 : v < max*0.5 ? 2 : v < max*0.75 ? 3 : 4;
   const cells = weeks.map(w => {
     const dd = w.id.slice(5).replace('-', '/');   // "MM/DD"
-    const txt = w.vol > 0 ? `${dd}: ${fmtKg(w.vol)} kg` : `${dd}: sin registro`;
+    const txt = w.vol > 0 ? `${dd}: ${fmtKg(w.vol)} ${wUnit()}` : `${dd}: sin registro`;
     return `<span class="heat-cell l${level(w.vol)}${w.now ? ' now' : ''}" title="Semana ${txt}"></span>`;
   }).join('');
   return `<div class="heat">${cells}</div>
@@ -1089,7 +1104,7 @@ function lastTimeHint(i, e){
   const prior = exerciseHistory(current, e.id).filter(h => h.date !== today);
   if(!prior.length) return '';
   const ref = prior[prior.length - 1];
-  return `<div class="lasttime">Última vez <b>${fmtKg(ref.w)} kg × ${ref.reps || '—'}</b> <span>· ${ref.date.slice(5).replace('-', '/')}</span></div>`;
+  return `<div class="lasttime">Última vez <b>${fmtKg(ref.w)} ${wUnit()} × ${ref.reps || '—'}</b> <span>· ${ref.date.slice(5).replace('-', '/')}</span></div>`;
 }
 
 /* ----------------------------------------------------------------
@@ -1138,15 +1153,15 @@ function progressionSuggest(e){
   if(!last || !last.w) return null;
   const { max } = parseRepsRange(e.r);
   const rir = last.rir;
-  const ref = `${fmtWeight(last.w)} kg × ${last.reps}${rir != null ? ` · RIR ${rir}` : ''}`;
+  const ref = `${fmtWeight(last.w)} ${wUnit()} × ${last.reps}${rir != null ? ` · RIR ${rir}` : ''}`;
   const up = +(last.w + WEIGHT_STEP).toFixed(2);
   if(stagnationCount(current, e.id, today) >= 2){
     return { cls:'warn', html:`⚠️ Estancado (${ref}). Prueba cambiar el rango de reps, sumar descanso o una semana de descarga.` };
   }
   const hasHeadroom = (rir != null && rir >= 2) || (max && last.reps >= max);
-  if(hasHeadroom) return { cls:'up',  html:`💡 La última vez ${ref} con margen → prueba <b>${fmtWeight(up)} kg</b>.` };
-  if(rir != null && rir <= 1) return { cls:'', html:`Mantén <b>${fmtWeight(last.w)} kg</b> y busca más repeticiones antes de subir.` };
-  return { cls:'', html:`Repite <b>${fmtWeight(last.w)} kg</b> e intenta sumar 1–2 reps.` };
+  if(hasHeadroom) return { cls:'up',  html:`💡 La última vez ${ref} con margen → prueba <b>${fmtWeight(up)} ${wUnit()}</b>.` };
+  if(rir != null && rir <= 1) return { cls:'', html:`Mantén <b>${fmtWeight(last.w)} ${wUnit()}</b> y busca más repeticiones antes de subir.` };
+  return { cls:'', html:`Repite <b>${fmtWeight(last.w)} ${wUnit()}</b> e intenta sumar 1–2 reps.` };
 }
 /** Línea de recomendación de sobrecarga bajo el ejercicio (spec §58). */
 function progressionHint(i, e){
@@ -1171,22 +1186,23 @@ function setRows(i){
       · fila principal:  [nº]  Peso(− valor +)  Reps(− valor +)
       · fila inferior:   [RIR]  [tipo de serie]  [eliminar] */
 function setRow(i, si, s, count){
-  const wv = (s.w === '' || s.w == null) ? '' : s.w;
+  // El peso se GUARDA en kg; aquí se muestra en la unidad elegida (redondeo a 0,5).
+  const wv = (s.w === '' || s.w == null) ? '' : (Math.round(toDisp(s.w) * 2) / 2);
   const rv = (s.reps === '' || s.reps == null) ? '' : s.reps;
   const rr = (s.rir === '' || s.rir == null) ? '' : s.rir;
   const type = s.type || 'efectiva';
   const opts = SET_TYPES.map(([v, lbl]) => `<option value="${v}"${type === v ? ' selected' : ''}>${lbl}</option>`).join('');
-  const stepper = (field, val, unit, dec) => `<div class="stepper">
-        <button class="step" type="button" data-step data-i="${i}" data-s="${si}" data-field="${field}" data-delta="-${dec ? WEIGHT_STEP : 1}" aria-label="Bajar ${field === 'w' ? 'peso' : 'reps'} serie ${si + 1}">−</button>
-        <input class="num" type="number" inputmode="${dec ? 'decimal' : 'numeric'}" min="0" step="${dec ? WEIGHT_STEP : 1}" value="${val}" placeholder="0" data-k="set" data-i="${i}" data-s="${si}" data-field="${field}" aria-label="${field === 'w' ? 'Peso' : 'Reps'} serie ${si + 1}${unit ? ' (kg)' : ''}">
-        ${unit ? `<span class="unit">${unit}</span>` : ''}
-        <button class="step" type="button" data-step data-i="${i}" data-s="${si}" data-field="${field}" data-delta="${dec ? WEIGHT_STEP : 1}" aria-label="Subir ${field === 'w' ? 'peso' : 'reps'} serie ${si + 1}">+</button>
+  const stepper = (field, val, unitLabel, step) => `<div class="stepper">
+        <button class="step" type="button" data-step data-i="${i}" data-s="${si}" data-field="${field}" data-delta="-${step}" aria-label="Bajar ${field === 'w' ? 'peso' : 'reps'} serie ${si + 1}">−</button>
+        <input class="num" type="number" inputmode="${unitLabel ? 'decimal' : 'numeric'}" min="0" step="${step}" value="${val}" placeholder="0" data-k="set" data-i="${i}" data-s="${si}" data-field="${field}" aria-label="${field === 'w' ? 'Peso' : 'Reps'} serie ${si + 1}${unitLabel ? ' (' + unitLabel + ')' : ''}">
+        ${unitLabel ? `<span class="unit">${unitLabel}</span>` : ''}
+        <button class="step" type="button" data-step data-i="${i}" data-s="${si}" data-field="${field}" data-delta="${step}" aria-label="Subir ${field === 'w' ? 'peso' : 'reps'} serie ${si + 1}">+</button>
       </div>`;
   return `<div class="setrow${isEffective(type) ? '' : ' warm'}" data-row="${si}">
     <div class="setrow-main">
       <span class="set-idx" aria-hidden="true">${si + 1}</span>
-      <div class="field"><span class="field-lbl">Peso</span>${stepper('w', wv, 'kg', true)}</div>
-      <div class="field"><span class="field-lbl">Reps</span>${stepper('reps', rv, '', false)}</div>
+      <div class="field"><span class="field-lbl">Peso</span>${stepper('w', wv, wUnit(), weightStepDisp())}</div>
+      <div class="field"><span class="field-lbl">Reps</span>${stepper('reps', rv, '', 1)}</div>
     </div>
     <div class="setrow-foot">
       <label class="set-rir"><span class="field-lbl">RIR</span><input class="num" type="number" inputmode="numeric" min="0" max="10" step="1" value="${rr}" placeholder="—" data-k="set" data-i="${i}" data-s="${si}" data-field="rir" aria-label="RIR serie ${si + 1}"></label>
@@ -1227,7 +1243,7 @@ function epley1RM(w, reps){
 /** Texto de la línea de 1RM a partir de un 1RM ya calculado. */
 function oneRmLine(rm){
   return rm > 0
-    ? `📈 1RM estimado: <b>${fmtKg(rm)} kg</b>`
+    ? `📈 1RM estimado: <b>${fmtKg(rm)} ${wUnit()}</b>`
     : '📈 Registra peso y reps para ver tu 1RM estimado';
 }
 /** Línea de 1RM estimado bajo cada ejercicio: mejor 1RM entre sus series. */
@@ -1268,12 +1284,12 @@ function historyDetails(i, e){
   }
   const first=hist[0], last=hist[hist.length-1], diff=last.w-first.w;
   const delta = hist.length>1
-    ? `<div class="hist-delta ${diff>=0?'up':'down'}">${diff>=0?'▲':'▼'} ${diff>=0?'Subiste':'Bajaste'} <b>${fmtKg(Math.abs(diff))} kg</b> desde ${first.date.slice(5).replace('-','/')} · ${fmtKg(first.w)} → ${fmtKg(last.w)} kg</div>`
-    : `<div class="hist-delta">Primer registro: <b>${fmtKg(first.w)} kg</b>. Registra otra sesión para ver tu curva.</div>`;
+    ? `<div class="hist-delta ${diff>=0?'up':'down'}">${diff>=0?'▲':'▼'} ${diff>=0?'Subiste':'Bajaste'} <b>${fmtKg(Math.abs(diff))} ${wUnit()}</b> desde ${first.date.slice(5).replace('-','/')} · ${fmtKg(first.w)} → ${fmtKg(last.w)} ${wUnit()}</div>`
+    : `<div class="hist-delta">Primer registro: <b>${fmtKg(first.w)} ${wUnit()}</b>. Registra otra sesión para ver tu curva.</div>`;
   const bestW = (bests[bestKeyFor(i, e)] || {}).w || 0;
   const rows = hist.slice(-8).map(h => {
     const isPr = h.w > 0 && h.w >= bestW;
-    return `<li${isPr ? ' class="pr"' : ''}><span>${h.date.slice(5).replace('-','/')}</span><b>${fmtKg(h.w)} kg</b> × ${h.reps || '—'}${isPr ? ' 🏆' : ''}</li>`;
+    return `<li${isPr ? ' class="pr"' : ''}><span>${h.date.slice(5).replace('-','/')}</span><b>${fmtKg(h.w)} ${wUnit()}</b> × ${h.reps || '—'}${isPr ? ' 🏆' : ''}</li>`;
   }).join('');
   return `<details class="acc"><summary><span class="acc-ico">📈</span> Historial · ${hist.length}</summary>
     ${svgExerciseCurve(hist.slice(-10))}${delta}<ul class="hist-list">${rows}</ul></details>`;
@@ -1345,7 +1361,8 @@ function onFieldChange(e){
     } else {
       let num = parseFloat(el.value);
       if(isNaN(num) || num < 0) num = 0;
-      row[field] = num;
+      // El peso se teclea en la unidad de visualización; se GUARDA siempre en kg.
+      row[field] = (field === 'w') ? +toKg(num).toFixed(4) : num;
     }
     // Récord por peso, solo series efectivas, con fecha (spec §61).
     if(field === 'w' && isEffective(row.type)){
@@ -1587,7 +1604,7 @@ function renderSummary(d, snap){
       <div class="sum-sub">${day.type || ''} · ${day.label || ''}</div></div>
     <div class="sum-grid">
       <div class="sum-card"><b>${fmtDuration(snap.durationMs)}</b><span>duración</span></div>
-      <div class="sum-card"><b>${fmtKg(snap.volume)}</b><span>kg volumen</span></div>
+      <div class="sum-card"><b>${fmtKg(snap.volume)}</b><span>${wUnit()} volumen</span></div>
       <div class="sum-card"><b>${snap.sets}</b><span>series</span></div>
       <div class="sum-card"><b>${snap.exercises}</b><span>ejercicios</span></div>
       <div class="sum-card"><b>${snap.oneRm ? fmtKg(snap.oneRm) : '—'}</b><span>1RM máx</span></div>
@@ -1658,11 +1675,11 @@ function updateVolume(){
     if(prev > 0){
       const diff = weekNow - prev;
       const sign = diff >= 0 ? '+' : '−';
-      extra = ` · semana ${fmtKg(weekNow)} kg (${sign}${fmtKg(Math.abs(diff))} vs. anterior)`;
+      extra = ` · semana ${fmtKg(weekNow)} ${wUnit()} (${sign}${fmtKg(Math.abs(diff))} vs. anterior)`;
     }
   }
   el.innerHTML = v > 0
-    ? `🏋️ Total volumen levantado: <b>${fmtKg(v)} kg</b>${extra}`
+    ? `🏋️ Total volumen levantado: <b>${fmtKg(v)} ${wUnit()}</b>${extra}`
     : `🏋️ Registra peso y reps para ver tu volumen total`;
 }
 
@@ -1840,8 +1857,16 @@ function applyTheme(){
 function setTheme(t){ theme = (t === 'light') ? 'light' : 'dark'; applyTheme(); syncSettings(); Store.save(); }
 /** Fija el descanso por defecto (0 = usar el sugerido por cada ejercicio). */
 function setRestDefault(s){ restDefault = +s || 0; syncSettings(); Store.save(); }
-/** Fija una meta semanal (spec §81): kind = 'sessions' | 'volume'. 0 = sin meta. */
-function setGoal(kind, val){ goals[kind] = Math.max(0, Math.round(+val || 0)); syncSettings(); Store.save(); }
+/** Fija la unidad de peso mostrada (spec §22/§108). Los datos siguen en kg. */
+function setUnit(u){ unit = (u === 'lb') ? 'lb' : 'kg'; syncSettings(); render(); Store.save(); }
+/** Fija una meta semanal (spec §81): kind = 'sessions' | 'volume'. 0 = sin meta.
+    La meta de volumen se introduce en la unidad elegida y se guarda en kg. */
+function setGoal(kind, val){
+  let v = Math.max(0, +val || 0);
+  if(kind === 'volume') v = toKg(v);
+  goals[kind] = Math.round(v);
+  syncSettings(); Store.save();
+}
 /** Re-pinta el panel de ajustes si está abierto (refleja el estado activo). */
 function syncSettings(){ const p = document.getElementById('settings'); if(p && !p.hidden) renderSettings(); }
 /** Panel de configuración (spec §47/§100/§108). */
@@ -1854,6 +1879,12 @@ function renderSettings(){
       <button class="seg-btn ${theme === 'dark' ? 'on' : ''}" onclick="setTheme('dark')">🌙 Oscuro</button>
       <button class="seg-btn ${theme === 'light' ? 'on' : ''}" onclick="setTheme('light')">☀️ Claro</button>
     </div>
+    <h3>Unidad de peso</h3>
+    <p><small>Cambia cómo se muestran los pesos. Tus datos siempre se guardan igual.</small></p>
+    <div class="seg" role="group" aria-label="Unidad de peso">
+      <button class="seg-btn ${unit === 'kg' ? 'on' : ''}" onclick="setUnit('kg')">kg</button>
+      <button class="seg-btn ${unit === 'lb' ? 'on' : ''}" onclick="setUnit('lb')">lb</button>
+    </div>
     <h3>Descanso por defecto</h3>
     <p><small>Al marcar una serie el cronómetro usará este tiempo. «Del plan» respeta el descanso sugerido por cada ejercicio.</small></p>
     <div class="chip-row">${presets.map(s => `<button class="chipbtn ${restDefault === s ? 'on' : ''}" onclick="setRestDefault(${s})">${s === 0 ? 'Del plan' : s + 's'}</button>`).join('')}</div>
@@ -1861,11 +1892,11 @@ function renderSettings(){
     <p><small>Ponte objetivos y sigue su progreso en la pestaña Progreso. 0 = sin meta.</small></p>
     <label class="goal-field">Sesiones por semana
       <input type="number" inputmode="numeric" min="0" max="14" value="${goals.sessions || ''}" placeholder="0" onchange="setGoal('sessions', this.value)" aria-label="Meta de sesiones por semana"></label>
-    <label class="goal-field">Volumen semanal (kg)
-      <input type="number" inputmode="numeric" min="0" step="500" value="${goals.volume || ''}" placeholder="0" onchange="setGoal('volume', this.value)" aria-label="Meta de volumen semanal en kg"></label>
+    <label class="goal-field">Volumen semanal (${wUnit()})
+      <input type="number" inputmode="numeric" min="0" step="500" value="${goals.volume ? Math.round(toDisp(goals.volume)) : ''}" placeholder="0" onchange="setGoal('volume', this.value)" aria-label="Meta de volumen semanal"></label>
     <h3>Glosario</h3>
     <details class="acc"><summary><span class="acc-ico">💡</span> ¿Qué es el RIR?</summary><div class="gloss"><b>Repeticiones en reserva.</b> Cuántas repeticiones más podrías haber hecho antes de fallar. RIR 2 = te quedaban 2; RIR 0 = fallo total. Para ganar músculo, apunta a RIR 0–3.</div></details>
-    <details class="acc"><summary><span class="acc-ico">🔢</span> ¿Qué son las reps?</summary><div class="gloss"><b>Repeticiones:</b> cuántas veces levantas el peso en una serie. «70 kg × 10» = diez repeticiones con 70 kg. Un grupo de reps seguidas es una <b>serie</b>; descansas entre series.</div></details>
+    <details class="acc"><summary><span class="acc-ico">🔢</span> ¿Qué son las reps?</summary><div class="gloss"><b>Repeticiones:</b> cuántas veces levantas el peso en una serie. «70 ${wUnit()} × 10» = diez repeticiones con 70 kg. Un grupo de reps seguidas es una <b>serie</b>; descansas entre series.</div></details>
     <details class="acc"><summary><span class="acc-ico">🏷️</span> Tipos de serie</summary><div class="gloss"><b>Efectiva:</b> cuenta para volumen y récords (tus series serias). <b>Calentamiento</b> y <b>Aproximación:</b> preparan el cuerpo, no cuentan. <b>Al fallo · Drop set · Back-off · Rest-pause · Myo-reps · Superserie:</b> técnicas intensas para series puntuales.</div></details>
     <details class="acc"><summary><span class="acc-ico">📈</span> 1RM estimado y volumen</summary><div class="gloss"><b>1RM estimado:</b> el peso que probablemente levantarías una sola vez; la app lo calcula con tu serie (fórmula de Epley), sin que lo pruebes. <b>Volumen:</b> peso × reps sumado de tus series efectivas; subirlo con el tiempo = progreso.</div></details>
     <h3>Tus datos</h3>
@@ -1998,7 +2029,7 @@ function progressByExerciseHtml(){
     const sign = diff > 0 ? '+' : diff < 0 ? '−' : '±';
     return `<div class="exprog">
       <div class="exprog-head"><span class="exprog-name">${e.n}</span>
-        <span class="exprog-delta ${cls}">${sign}${fmtKg(Math.abs(diff))} kg</span></div>
+        <span class="exprog-delta ${cls}">${sign}${fmtKg(Math.abs(diff))} ${wUnit()}</span></div>
       ${svgExerciseCurve(h.slice(-10))}</div>`;
   }).join('');
 }
@@ -2237,7 +2268,7 @@ function renderProgress(){
     const d = +k.slice(0, k.indexOf('-'));
     const slug = k.slice(k.indexOf('-') + 1);
     const ex = resolveBySlug(d, slug, 'full') || resolveBySlug(d, slug, 'express');
-    return ex ? { label: ex.n, value: bests[k].w, valText: fmtKg(bests[k].w) + ' kg' } : null;
+    return ex ? { label: ex.n, value: bests[k].w, valText: fmtKg(bests[k].w) + ' ' + wUnit() } : null;
   }).filter(Boolean).sort((a, b) => b.value - a.value).slice(0, 8);
 
   // --- Constancia (heatmap tipo GitHub): últimas 12 semanas por volumen ---
@@ -2246,7 +2277,7 @@ function renderProgress(){
   host.innerHTML = `
     <h3>Resumen de la semana</h3>
     <div class="stat-cards">
-      <div class="scard k1"><b>${fmtKg(weekNow)}</b><span>kg volumen</span></div>
+      <div class="scard k1"><b>${fmtKg(weekNow)}</b><span>${wUnit()} volumen</span></div>
       <div class="scard k2"><b>${sessCount}</b><span>sesiones</span></div>
       <div class="scard k3"><b>${recordCount}</b><span>récords</span></div>
       <div class="scard k4"><b>${cstats.streak}</b><span>racha sem.</span></div>
@@ -2255,10 +2286,10 @@ function renderProgress(){
     <div class="metrics">${metricsLine}</div>
     ${(goals.sessions || goals.volume) ? `<h3>Metas 🎯</h3>
       ${goalBar('Sesiones', weekSessionsCount(), goals.sessions, '')}
-      ${goalBar('Volumen', weekNow, goals.volume, 'kg')}` : ''}
+      ${goalBar('Volumen', weekNow, goals.volume, wUnit())}` : ''}
     <h3>Intensidad de la semana</h3>
     <div class="stat-cards">
-      <div class="scard k1"><b>${wm.avgWeight != null ? fmtWeight(wm.avgWeight) : '—'}</b><span>peso medio (kg)</span></div>
+      <div class="scard k1"><b>${wm.avgWeight != null ? fmtWeight(wm.avgWeight) : '—'}</b><span>peso medio (${wUnit()})</span></div>
       <div class="scard k2"><b>${wm.avgReps != null ? wm.avgReps.toFixed(1) : '—'}</b><span>reps medias</span></div>
       <div class="scard k3"><b>${wm.avgRir != null ? wm.avgRir.toFixed(1) : '—'}</b><span>RIR medio</span></div>
       <div class="scard k4"><b>${wm.effSets}/${wm.totalSets}</b><span>series ef./tot.</span></div>
@@ -2271,7 +2302,7 @@ function renderProgress(){
       <button class="rtab ${progressRange==='year'?'on':''}" type="button" onclick="setProgressRange('year')">Año</button>
     </div>
     <div class="chart-card">
-      <div class="chart-cap"><b>${fmtKg(cps.v)}<span class="u">kg</span></b><span>${cps.lbl}</span></div>
+      <div class="chart-cap"><b>${fmtKg(cps.v)}<span class="u">${wUnit()}</span></b><span>${cps.lbl}</span></div>
       ${td.length > 1 ? svgArea(td) : '<p style="margin:4px 2px"><small>Aún no hay suficiente historial para esta vista: la curva crece con cada sesión. 📈</small></p>'}
     </div>
     <h3>Progreso por ejercicio</h3>
@@ -2288,11 +2319,11 @@ function renderProgress(){
     ${muscleFreqHtml()}
     <h3>Récords históricos 🏆</h3>
     <div class="stat-cards">
-      <div class="scard k3"><b>${grec.maxRm ? fmtKg(grec.maxRm) : '—'}</b><span>1RM máx (kg)</span></div>
+      <div class="scard k3"><b>${grec.maxRm ? fmtKg(grec.maxRm) : '—'}</b><span>1RM máx (${wUnit()})</span></div>
       <div class="scard k1"><b>${grec.maxReps || '—'}</b><span>reps máx</span></div>
-      <div class="scard k2"><b>${grec.maxSessionVol ? fmtKg(grec.maxSessionVol) : '—'}</b><span>vol. sesión (kg)</span></div>
-      <div class="scard k1"><b>${grec.bestWeek ? fmtKg(grec.bestWeek) : '—'}</b><span>mejor semana (kg)</span></div>
-      <div class="scard k2"><b>${grec.bestMonth ? fmtKg(grec.bestMonth) : '—'}</b><span>mejor mes (kg)</span></div>
+      <div class="scard k2"><b>${grec.maxSessionVol ? fmtKg(grec.maxSessionVol) : '—'}</b><span>vol. sesión (${wUnit()})</span></div>
+      <div class="scard k1"><b>${grec.bestWeek ? fmtKg(grec.bestWeek) : '—'}</b><span>mejor semana (${wUnit()})</span></div>
+      <div class="scard k2"><b>${grec.bestMonth ? fmtKg(grec.bestMonth) : '—'}</b><span>mejor mes (${wUnit()})</span></div>
       <div class="scard k4"><b>${grec.maxStreak || 0}</b><span>racha máx (sem)</span></div>
     </div>
     ${grec.maxRmName ? `<p class="rec-note"><small>Tu mejor 1RM estimado es en <b>${grec.maxRmName}</b>.</small></p>` : ''}

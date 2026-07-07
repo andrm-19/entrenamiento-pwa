@@ -228,31 +228,39 @@ footer p{margin:0 0 8px;} footer b{color:var(--text);}
 .field-lbl{display:block; margin:0 0 5px 2px; font-size:9.5px; font-weight:700;
   letter-spacing:.06em; text-transform:uppercase; color:var(--muted);}
 
-/* Stepper "− valor +" como un solo control segmentado */
-.stepper{display:flex; align-items:center; height:46px; overflow:hidden;
+/* Stepper "− valor +" — el número central es un CAMPO EDITABLE bien visible
+   (recuadro tenue + placeholder claro + cursor de color + anillo al enfocar). */
+.stepper{display:flex; align-items:center; height:48px; overflow:hidden;
   border-radius:12px; background:var(--surface); border:1px solid var(--border);
-  transition:border-color .15s;}
-.stepper:focus-within{border-color:var(--accent);}
-.step{flex:0 0 auto; width:40px; align-self:stretch; border:none; background:transparent;
-  color:var(--muted); font-size:22px; font-weight:600; line-height:1; cursor:pointer;
+  transition:border-color .15s, box-shadow .15s;}
+.stepper:focus-within{border-color:var(--accent); box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 16%,transparent);}
+.step{flex:0 0 auto; width:38px; align-self:stretch; border:none; background:var(--surface-2);
+  color:var(--text); font-size:22px; font-weight:600; line-height:1; cursor:pointer;
   display:grid; place-items:center; transition:background .12s, color .12s;}
-.step:hover{color:var(--text);}
-.step:active{background:color-mix(in srgb,var(--accent) 22%,transparent); color:var(--text);}
-.stepper .num{flex:1; min-width:0; width:100%; background:none; border:none; color:var(--text);
-  text-align:center; font-size:19px; font-weight:800; font-variant-numeric:tabular-nums;
-  padding:0; -moz-appearance:textfield;}
-.stepper .unit{flex:0 0 auto; padding-right:5px; font-size:10px; font-weight:700;
+.step:hover{color:var(--accent);}
+.step:active{background:color-mix(in srgb,var(--accent) 28%,transparent); color:var(--text);}
+.stepper .num{flex:1 1 auto; min-width:34px; align-self:center; height:36px; margin:0 5px;
+  background:color-mix(in srgb,var(--accent) 8%, var(--surface-2)); border:1px solid var(--border); border-radius:9px;
+  color:var(--text); text-align:center; font-size:19px; font-weight:800; font-variant-numeric:tabular-nums;
+  padding:0 2px; -moz-appearance:textfield; caret-color:var(--accent); transition:background .12s, border-color .12s;}
+.stepper .num::placeholder{color:var(--muted); opacity:.85; font-weight:700;}
+.stepper .num:focus{background:color-mix(in srgb,var(--accent) 16%, transparent); border-color:var(--accent);}
+.stepper .unit{flex:0 0 auto; padding-right:6px; font-size:10px; font-weight:700;
   letter-spacing:.04em; text-transform:uppercase; color:var(--muted);}
 .num::-webkit-outer-spin-button,.num::-webkit-inner-spin-button{-webkit-appearance:none; margin:0;}
 .num:focus{outline:none;}
 
 /* Fila inferior: RIR · tipo de serie · eliminar */
 .setrow-foot{display:flex; align-items:center; gap:9px;}
-.set-rir{display:flex; align-items:center; gap:7px; flex:0 0 auto; height:42px; padding:0 12px;
-  background:var(--surface); border:1px solid var(--border); border-radius:11px; transition:border-color .15s;}
-.set-rir:focus-within{border-color:var(--accent);}
+.set-rir{display:flex; align-items:center; gap:8px; flex:0 0 auto; height:44px; padding:0 10px 0 12px;
+  background:var(--surface); border:1px solid var(--border); border-radius:11px; transition:border-color .15s, box-shadow .15s;}
+.set-rir:focus-within{border-color:var(--accent); box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 16%,transparent);}
 .set-rir .field-lbl{margin:0;}
-.set-rir .num{width:28px; flex:0 0 auto; font-size:16px; font-weight:800; text-align:center;}
+.set-rir .num{width:40px; height:32px; flex:0 0 auto; font-size:17px; font-weight:800; text-align:center;
+  background:color-mix(in srgb,var(--accent) 8%, var(--surface-2)); border:1px solid var(--border); border-radius:8px;
+  color:var(--text); caret-color:var(--accent); -moz-appearance:textfield; transition:background .12s, border-color .12s;}
+.set-rir .num::placeholder{color:var(--muted); opacity:.85;}
+.set-rir .num:focus{background:color-mix(in srgb,var(--accent) 16%, transparent); border-color:var(--accent);}
 .set-type{flex:1 1 auto; min-width:0; height:42px; background:var(--surface); color:var(--text);
   border:1px solid var(--border); border-radius:11px; padding:0 30px 0 12px; font-family:inherit;
   font-size:13px; font-weight:600; cursor:pointer; appearance:none; -webkit-appearance:none;

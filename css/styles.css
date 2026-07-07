@@ -769,3 +769,19 @@ footer p{margin:0 0 8px;} footer b{color:var(--text);}
 /* Estado vacío */
 .empty{text-align:center; padding:26px 16px; color:var(--muted); font-size:12.5px; line-height:1.5;}
 .empty .emoji{font-size:30px; display:block; margin-bottom:8px; opacity:.85;}
+
+/* Informe imprimible / "Exportar PDF" (spec §85): oculto salvo al imprimir */
+#printReport{display:none;}
+@media print{
+  body.printing > *:not(#printReport){display:none !important;}
+  body.printing #printReport{display:block !important; color:#111; background:#fff; padding:0 4px;}
+  #printReport h1{font-size:20px; margin:0 0 2px;}
+  #printReport h2{font-size:14px; margin:16px 0 6px; border-bottom:1px solid #ccc; padding-bottom:2px;}
+  #printReport .pr-date{color:#666; font-size:12px; margin:0 0 8px;}
+  #printReport ul{margin:0; padding-left:18px; font-size:12.5px;}
+  #printReport li{margin-bottom:3px;}
+  #printReport table{width:100%; border-collapse:collapse; font-size:11.5px; margin-top:2px;}
+  #printReport th,#printReport td{border:1px solid #bbb; padding:4px 6px; text-align:left;}
+  #printReport th{background:#eee;}
+  #printReport .pr-foot{margin-top:18px; color:#888; font-size:10px; text-align:center;}
+}

@@ -1904,6 +1904,7 @@ function renderSettings(){
       <button class="pbtn" onclick="exportJSON()">💾 Respaldo</button>
       <button class="pbtn" onclick="importJSON()">♻️ Restaurar</button>
       <button class="pbtn" onclick="exportCSV()">📥 CSV</button>
+      <button class="pbtn" onclick="exportPDF()">📄 PDF</button>
     </div>
     <button class="panel-close" onclick="closePanels()">Cerrar ✕</button>`;
 }
@@ -1953,6 +1954,40 @@ function exportCSV(){
 function exportJSON(){
   download(DB.read(Store.KEY) || '{}', 'entreno-v-respaldo.json', 'application/json');
   showToast('Respaldo descargado ✓', 'success');
+}
+
+/** Exporta un informe imprimible (spec §85). Usa el diálogo de impresión del
+    navegador -> "Guardar como PDF" (funciona offline, sin librerías). */
+function exportPDF(){
+  let host = document.getElementById('printReport');
+  if(!host){ host = document.createElement('div'); host.id = 'printReport'; document.body.appendChild(host); }
+  const gr = globalRecords(), cs = consistencyStats();
+  const weeks = weeklyVolumes().slice(-12);
+  const rows = statsRows();
+  const u = wUnit();
+  const today = new Date().toLocaleDateString('es-ES');
+  host.innerHTML = `
+    <h1>Entreno V — Informe de progreso</h1>
+    <p class="pr-date">Generado el ${today}</p>
+    <h2>Resumen</h2>
+    <ul>
+      <li>Volumen esta semana: <b>${fmtKg(weekVolume())} ${u}</b></li>
+      <li>Racha: <b>${cs.streak}</b> semanas · Sesiones este mes: <b>${cs.month}</b> · Total: <b>${cs.total}</b></li>
+      <li>1RM máx: <b>${gr.maxRm ? fmtKg(gr.maxRm) + ' ' + u : '—'}</b> · Reps máx: <b>${gr.maxReps || '—'}</b></li>
+      <li>Mejor semana: <b>${fmtKg(gr.bestWeek)} ${u}</b> · Mejor mes: <b>${fmtKg(gr.bestMonth)} ${u}</b> · Racha máx: <b>${gr.maxStreak}</b></li>
+    </ul>
+    <h2>Volumen por semana</h2>
+    <table><thead><tr><th>Semana (lunes)</th><th>Volumen (${u})</th></tr></thead><tbody>
+      ${weeks.map(w => `<tr><td>${w.weekId}</td><td>${fmtKg(w.volume)}</td></tr>`).join('') || '<tr><td colspan="2">Sin datos</td></tr>'}
+    </tbody></table>
+    <h2>Récords por ejercicio</h2>
+    <table><thead><tr><th>Ejercicio</th><th>Récord (${u})</th><th>Último</th></tr></thead><tbody>
+      ${rows.map(r => `<tr><td>${r.ejercicio}</td><td>${fmtKg(r.record)}</td><td>${r.peso ? fmtKg(r.peso) + ' × ' + r.reps : '—'}</td></tr>`).join('') || '<tr><td colspan="3">Registra pesos para ver récords</td></tr>'}
+    </tbody></table>
+    <p class="pr-foot">Entreno V · PWA de entrenamiento · datos locales del usuario</p>`;
+  document.body.classList.add('printing');
+  // Espera un frame para que el layout del informe esté listo antes de imprimir.
+  setTimeout(() => { window.print(); document.body.classList.remove('printing'); }, 60);
 }
 
 /**
@@ -2109,6 +2144,14 @@ function buildInsights(){
   let stale = null, staleDays = 10;
   for(const mu in last){ const diff = Math.round((parseYmd(ymd(now)) - parseYmd(last[mu])) / 86400000); if(diff > staleDays){ staleDays = diff; stale = mu; } }
   if(stale) out.push(`💤 Llevas ${staleDays} días sin entrenar ${(MUSCLE_LABEL[stale] || stale).toLowerCase()}.`);
+  // Fatiga (spec §60): volumen a la baja varias semanas + RIR muy bajo (cerca del fallo).
+  const avgRir = weeklyMetrics().avgRir;
+  if(prevs.length >= 2){
+    const a = prevs[prevs.length - 1].volume, b = prevs[prevs.length - 2].volume;
+    if(a < b && weekNow > 0 && weekNow < a && avgRir != null && avgRir < 1.5){
+      out.push('😴 Volumen a la baja con RIR muy bajo: podrías estar acumulando fatiga. Considera una semana más suave.');
+    }
+  }
   if(!out.length) out.push('💡 Registra tus series y aquí verás análisis de tu progreso.');
   return out.slice(0, 4);
 }
@@ -2336,6 +2379,7 @@ function renderProgress(){
       </table></div>` : '<p><small>Registra pesos para llenar la tabla.</small></p>'}
     <div class="export-row">
       <button class="pbtn" onclick="exportCSV()">📥 CSV</button>
+      <button class="pbtn" onclick="exportPDF()">📄 PDF</button>
       <button class="pbtn" onclick="exportJSON()">💾 Respaldo</button>
       <button class="pbtn" onclick="importJSON()">♻️ Restaurar</button>
     </div>

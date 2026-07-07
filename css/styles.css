@@ -517,11 +517,11 @@ footer p{margin:0 0 8px;} footer b{color:var(--text);}
   box-shadow:0 3px 10px color-mix(in srgb,var(--primary) 22%,transparent), inset 0 1px 0 rgba(255,255,255,.3);}
 
 /* Botones secundarios: hover con acento y pulsación uniforme */
-.pbtn,.dbtn,.addset,.panel-close,.reset,.rest-add,.rest-skip,.chipbtn,.seg-btn,.set-del,.gear,.cal-link{
+.pbtn,.addset,.panel-close,.reset,.rest-add,.rest-skip,.chipbtn,.seg-btn,.set-del{
   transition:transform .12s ease, border-color .15s ease, background .15s ease, box-shadow .15s ease, color .15s ease;}
-.pbtn:hover,.dbtn:hover,.addset:hover,.panel-close:hover{
+.pbtn:hover,.addset:hover,.panel-close:hover{
   border-color:color-mix(in srgb,var(--primary) 55%,var(--border)); box-shadow:var(--shadow-sm);}
-.pbtn:active,.dbtn:active,.panel-close:active{transform:scale(.96);}
+.pbtn:active,.panel-close:active{transform:scale(.96);}
 
 /* Tarjetas: borde superior de luz + realce sutil */
 .scard,.sum-card{position:relative; overflow:hidden;}

@@ -10,12 +10,12 @@
    requieren internet); el resto de la app funciona offline.
    ============================================================ */
 
-const CACHE_VERSION = 'entrenoV-v21';
+const CACHE_VERSION = 'entrenoV-v22';
 const APP_SHELL = [
   './',
   './index.html',
-  './css/styles.css?v=21',
-  './js/app.js?v=21',
+  './css/styles.css?v=22',
+  './js/app.js?v=22',
   './manifest.json',
   './assets/icon.svg'
 ];

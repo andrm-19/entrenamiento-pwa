@@ -922,28 +922,33 @@ function setRows(i){
   return list.map((s, si) => setRow(i, si, s, list.length)).join('');
 }
 
-/** HTML de una fila de serie: nº · peso · reps · RIR · tipo · (eliminar si hay varias). */
+/** HTML de una fila de serie: nº · peso · reps · RIR · tipo · (eliminar si hay varias).
+    Layout en dos niveles (grid) para que NUNCA se desborde ni envuelva feo en móvil:
+      · fila principal:  [nº]  Peso(− valor +)  Reps(− valor +)
+      · fila inferior:   [RIR]  [tipo de serie]  [eliminar] */
 function setRow(i, si, s, count){
   const wv = (s.w === '' || s.w == null) ? '' : s.w;
   const rv = (s.reps === '' || s.reps == null) ? '' : s.reps;
   const rr = (s.rir === '' || s.rir == null) ? '' : s.rir;
   const type = s.type || 'efectiva';
   const opts = SET_TYPES.map(([v, lbl]) => `<option value="${v}"${type === v ? ' selected' : ''}>${lbl}</option>`).join('');
+  const stepper = (field, val, unit, dec) => `<div class="stepper">
+        <button class="step" type="button" data-step data-i="${i}" data-s="${si}" data-field="${field}" data-delta="-${dec ? WEIGHT_STEP : 1}" aria-label="Bajar ${field === 'w' ? 'peso' : 'reps'} serie ${si + 1}">−</button>
+        <input class="num" type="number" inputmode="${dec ? 'decimal' : 'numeric'}" min="0" step="${dec ? WEIGHT_STEP : 1}" value="${val}" placeholder="0" data-k="set" data-i="${i}" data-s="${si}" data-field="${field}" aria-label="${field === 'w' ? 'Peso' : 'Reps'} serie ${si + 1}${unit ? ' (kg)' : ''}">
+        ${unit ? `<span class="unit">${unit}</span>` : ''}
+        <button class="step" type="button" data-step data-i="${i}" data-s="${si}" data-field="${field}" data-delta="${dec ? WEIGHT_STEP : 1}" aria-label="Subir ${field === 'w' ? 'peso' : 'reps'} serie ${si + 1}">+</button>
+      </div>`;
   return `<div class="setrow${isEffective(type) ? '' : ' warm'}" data-row="${si}">
-    <span class="set-idx">${si + 1}</span>
-    <div class="log-field">
-      <button class="step" type="button" data-step data-i="${i}" data-s="${si}" data-field="w" data-delta="-${WEIGHT_STEP}" aria-label="Bajar peso serie ${si + 1}">−</button>
-      <span class="log-box"><input class="log-input" type="number" inputmode="decimal" min="0" step="${WEIGHT_STEP}" value="${wv}" placeholder="0" data-k="set" data-i="${i}" data-s="${si}" data-field="w" aria-label="Peso serie ${si + 1} (kg)"><span class="log-unit">kg</span></span>
-      <button class="step" type="button" data-step data-i="${i}" data-s="${si}" data-field="w" data-delta="${WEIGHT_STEP}" aria-label="Subir peso serie ${si + 1}">+</button>
+    <div class="setrow-main">
+      <span class="set-idx" aria-hidden="true">${si + 1}</span>
+      <div class="field"><span class="field-lbl">Peso</span>${stepper('w', wv, 'kg', true)}</div>
+      <div class="field"><span class="field-lbl">Reps</span>${stepper('reps', rv, '', false)}</div>
     </div>
-    <div class="log-field">
-      <button class="step" type="button" data-step data-i="${i}" data-s="${si}" data-field="reps" data-delta="-1" aria-label="Bajar reps serie ${si + 1}">−</button>
-      <span class="log-box"><input class="log-input" type="number" inputmode="numeric" min="0" step="1" value="${rv}" placeholder="reps" data-k="set" data-i="${i}" data-s="${si}" data-field="reps" aria-label="Reps serie ${si + 1}"><span class="log-unit">rps</span></span>
-      <button class="step" type="button" data-step data-i="${i}" data-s="${si}" data-field="reps" data-delta="1" aria-label="Subir reps serie ${si + 1}">+</button>
+    <div class="setrow-foot">
+      <label class="set-rir"><span class="field-lbl">RIR</span><input class="num" type="number" inputmode="numeric" min="0" max="10" step="1" value="${rr}" placeholder="—" data-k="set" data-i="${i}" data-s="${si}" data-field="rir" aria-label="RIR serie ${si + 1}"></label>
+      <select class="set-type" data-k="set" data-i="${i}" data-s="${si}" data-field="type" aria-label="Tipo de serie ${si + 1}">${opts}</select>
+      ${count > 1 ? `<button class="set-del" type="button" data-delset data-i="${i}" data-s="${si}" aria-label="Eliminar serie ${si + 1}">✕</button>` : ''}
     </div>
-    <label class="set-rir"><span>RIR</span><input class="log-input" type="number" inputmode="numeric" min="0" max="10" step="1" value="${rr}" placeholder="—" data-k="set" data-i="${i}" data-s="${si}" data-field="rir" aria-label="RIR serie ${si + 1}"></label>
-    <select class="set-type" data-k="set" data-i="${i}" data-s="${si}" data-field="type" aria-label="Tipo de serie ${si + 1}">${opts}</select>
-    ${count > 1 ? `<button class="set-del" type="button" data-delset data-i="${i}" data-s="${si}" aria-label="Eliminar serie ${si + 1}">✕</button>` : ''}
   </div>`;
 }
 

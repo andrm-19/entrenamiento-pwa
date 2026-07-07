@@ -1,29 +1,36 @@
 /* ============================================================
-   Entreno V — Service Worker (offline-first)
+   Entreno V — Service Worker (offline-first, con actualización fiable)
    ------------------------------------------------------------
-   Estrategia: "cache-first" sobre un App Shell precacheado.
-   La primera visita guarda los archivos locales; a partir de ahí
-   la app abre sin conexión. Para actualizar, sube CACHE_VERSION:
-   el SW borra las cachés viejas en el evento 'activate'.
+   Estrategia por tipo de recurso:
+     · Código de la app (navegación, .html, .js, .css) -> NETWORK-FIRST:
+       siempre intenta la red; si responde OK, actualiza la caché y la
+       sirve. Sin conexión, cae a la copia cacheada. Esto garantiza que
+       cada despliegue nuevo LLEGUE al dispositivo (antes, con cache-first,
+       una versión rota podía quedar fijada para siempre).
+     · Estáticos inmutables (icono, manifest, imágenes) -> CACHE-FIRST
+       (stale-while-revalidate): respuesta instantánea + refresco en 2º plano.
 
-   Nota: los videos de YouTube NO se cachean (son externos y
-   requieren internet); el resto de la app funciona offline.
+   Reglas de oro:
+     · NUNCA se cachea una respuesta que no sea 200/OK (evita fijar 404/500).
+     · Para actualizar la app basta con subir CACHE_VERSION (y ?v= en index.html).
    ============================================================ */
 
-const CACHE_VERSION = 'entrenoV-v23';
+const CACHE_VERSION = 'entrenoV-v24';
 const APP_SHELL = [
   './',
   './index.html',
-  './css/styles.css?v=23',
-  './js/app.js?v=23',
+  './css/styles.css?v=24',
+  './js/app.js?v=24',
   './manifest.json',
   './assets/icon.svg'
 ];
 
-// Instalación: precachea el App Shell.
+// Instalación: precachea el App Shell (tolerante a fallos individuales).
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_VERSION).then((cache) => cache.addAll(APP_SHELL))
+    caches.open(CACHE_VERSION).then((cache) =>
+      Promise.allSettled(APP_SHELL.map((url) => cache.add(url)))
+    )
   );
   self.skipWaiting();
 });
@@ -31,29 +38,47 @@ self.addEventListener('install', (event) => {
 // Activación: limpia versiones anteriores de la caché.
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE_VERSION).map((k) => caches.delete(k)))
-    )
+    caches.keys()
+      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE_VERSION).map((k) => caches.delete(k))))
+      .then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
-// Fetch: solo gestionamos GET de la misma app; el resto va a la red.
+/** ¿Es una petición de "código de la app" (debe ir por red primero)? */
+function isAppCode(request, url) {
+  if (request.mode === 'navigate') return true;
+  return /\.(?:html|js|css)$/i.test(url.pathname);
+}
+
+/** Guarda en caché solo respuestas válidas (200/OK, básicas o CORS válidas). */
+function cachePut(request, response) {
+  if (response && response.ok && response.status === 200) {
+    const copy = response.clone();
+    caches.open(CACHE_VERSION).then((cache) => cache.put(request, copy));
+  }
+  return response;
+}
+
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET' || new URL(req.url).origin !== self.location.origin) return;
+  const url = new URL(req.url);
 
+  if (isAppCode(req, url)) {
+    // NETWORK-FIRST: la red manda; la caché es la red de seguridad offline.
+    event.respondWith(
+      fetch(req)
+        .then((res) => cachePut(req, res))
+        .catch(() => caches.match(req).then((hit) => hit || caches.match('./index.html')))
+    );
+    return;
+  }
+
+  // CACHE-FIRST (stale-while-revalidate) para estáticos.
   event.respondWith(
     caches.match(req).then((cached) => {
-      if (cached) return cached;
-      return fetch(req)
-        .then((res) => {
-          // Cachea en caliente las respuestas válidas de la propia app.
-          const copy = res.clone();
-          caches.open(CACHE_VERSION).then((cache) => cache.put(req, copy));
-          return res;
-        })
-        .catch(() => caches.match('./index.html')); // fallback offline
+      const network = fetch(req).then((res) => cachePut(req, res)).catch(() => cached);
+      return cached || network;
     })
   );
 });

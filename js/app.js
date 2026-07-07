@@ -853,6 +853,7 @@ function render(){
             <span class="stat"><span>Reps</span>${e.r}</span>
             <button class="stat stat-rest" type="button" data-rest="${parseRestSeconds(e.d)}" aria-label="Descanso ${e.d}">⏱ ${e.d}</button>
           </div>
+          ${lastTimeHint(i, e)}
           ${logRow(i)}
           ${bestRow(i, e)}
           ${oneRmRow(i)}
@@ -890,6 +891,17 @@ function render(){
 }
 
 /** HTML del registro de carga (peso + reps). Sin handlers inline: solo data-*. */
+/** Referencia rápida "Última vez" (sesión previa, no la de hoy) para registrar veloz
+    — como el "Previous" de Hevy/Strong. Ayuda a cerrar cada serie en <3 s. */
+function lastTimeHint(i, e){
+  if(!e || !e.id) return '';
+  const today = dateOfDay(current);
+  const prior = exerciseHistory(current, e.id).filter(h => h.date !== today);
+  if(!prior.length) return '';
+  const ref = prior[prior.length - 1];
+  return `<div class="lasttime">Última vez <b>${fmtKg(ref.w)} kg × ${ref.reps || '—'}</b> <span>· ${ref.date.slice(5).replace('-', '/')}</span></div>`;
+}
+
 function logRow(i){
   return `<div class="sets" id="sets-${i}">${setRows(i)}</div>
     <button class="addset" type="button" data-addset data-i="${i}">＋ Añadir serie</button>`;
@@ -1420,6 +1432,11 @@ function renderSettings(){
     <h3>Descanso por defecto</h3>
     <p><small>Al marcar una serie el cronómetro usará este tiempo. «Del plan» respeta el descanso sugerido por cada ejercicio.</small></p>
     <div class="chip-row">${presets.map(s => `<button class="chipbtn ${restDefault === s ? 'on' : ''}" onclick="setRestDefault(${s})">${s === 0 ? 'Del plan' : s + 's'}</button>`).join('')}</div>
+    <h3>Glosario</h3>
+    <details class="acc"><summary><span class="acc-ico">💡</span> ¿Qué es el RIR?</summary><div class="gloss"><b>Repeticiones en reserva.</b> Cuántas repeticiones más podrías haber hecho antes de fallar. RIR 2 = te quedaban 2; RIR 0 = fallo total. Para ganar músculo, apunta a RIR 0–3.</div></details>
+    <details class="acc"><summary><span class="acc-ico">🔢</span> ¿Qué son las reps?</summary><div class="gloss"><b>Repeticiones:</b> cuántas veces levantas el peso en una serie. «70 kg × 10» = diez repeticiones con 70 kg. Un grupo de reps seguidas es una <b>serie</b>; descansas entre series.</div></details>
+    <details class="acc"><summary><span class="acc-ico">🏷️</span> Tipos de serie</summary><div class="gloss"><b>Efectiva:</b> cuenta para volumen y récords (tus series serias). <b>Calentamiento</b> y <b>Aproximación:</b> preparan el cuerpo, no cuentan. <b>Al fallo · Drop set · Back-off · Rest-pause · Myo-reps · Superserie:</b> técnicas intensas para series puntuales.</div></details>
+    <details class="acc"><summary><span class="acc-ico">📈</span> 1RM estimado y volumen</summary><div class="gloss"><b>1RM estimado:</b> el peso que probablemente levantarías una sola vez; la app lo calcula con tu serie (fórmula de Epley), sin que lo pruebes. <b>Volumen:</b> peso × reps sumado de tus series efectivas; subirlo con el tiempo = progreso.</div></details>
     <h3>Tus datos</h3>
     <div class="export-row">
       <button class="pbtn" onclick="exportJSON()">💾 Respaldo</button>
@@ -1648,12 +1665,31 @@ function achievementsHtml(){
   return `<div class="ach">` + buildAchievements().map(a =>
     `<div class="ach-badge ${a.ok ? 'on' : ''}"><span class="ach-ico">${a.icon}</span><span>${a.label}</span></div>`).join('') + `</div>`;
 }
+/** Métricas clave de la semana (spec §75): series efectivas, RIR medio, ejercicios. */
+function weeklyMetrics(){
+  let effSets = 0, rirSum = 0, rirN = 0; const exSet = new Set();
+  for(const key in setsMap){
+    if(!/^(x?)\d+-\d+$/.test(key)) continue;
+    (setsMap[key] || []).forEach(s => {
+      if(s && s.w > 0 && s.reps > 0 && isEffective(s.type)){
+        effSets++; exSet.add(key);
+        if(s.rir !== '' && s.rir != null){ rirSum += +s.rir; rirN++; }
+      }
+    });
+  }
+  return { effSets, avgRir: rirN ? rirSum / rirN : null, exercises: exSet.size };
+}
 
 function renderProgress(){
   const host = document.getElementById('progress');
   if(!host) return;
   const cstats = consistencyStats();
   const insights = buildInsights();
+  const wm = weeklyMetrics();
+  const s1 = wm.effSets === 1 ? '' : 's';
+  const metricsLine = `⚡ <b>${wm.effSets}</b> serie${s1} efectiva${s1}`
+    + (wm.avgRir != null ? ` · 🎯 RIR medio <b>${wm.avgRir.toFixed(1)}</b>` : '')
+    + ` · 🏋️ <b>${wm.exercises}</b> ejercicio${wm.exercises === 1 ? '' : 's'}`;
 
   // --- Resumen ---
   const rows = statsRows();
@@ -1698,6 +1734,7 @@ function renderProgress(){
       <div class="scard k4"><b>${cstats.streak}</b><span>racha sem.</span></div>
     </div>
     <div class="insights">${insights.map(t => `<div class="insight">${t}</div>`).join('')}</div>
+    <div class="metrics">${metricsLine}</div>
     <h3>Progreso por ejercicio</h3>
     ${progressByExerciseHtml()}
     <h3>Volumen semanal</h3>

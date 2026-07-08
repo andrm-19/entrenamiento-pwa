@@ -1620,6 +1620,36 @@ function trendForecastHtml(){
   return `<div class="forecasts">${items}</div>
     <p class="forecast-note"><small>Son estimaciones a partir de tu historial, no certezas.</small></p>`;
 }
+/* --- Línea de tiempo (spec §21): entrenamientos y récords en un mismo lugar.
+   Solo eventos con fecha real ya registrada; no se inventan hitos que la app aún
+   no rastrea (descargas, cambios de rutina, lesiones, peso corporal). --- */
+function timelineEvents(){
+  const ev = [];
+  for(const date in sessions){
+    const v = sessionVolume(sessions[date]);
+    if(v > 0){ const dt = SCHEDULE[sessions[date].dayType];
+      ev.push({ date, kind:'workout', icon:'🏋️', label: dt ? dt.type : 'Entreno', detail:`${fmtKg(v)} ${wUnit()}` }); }
+  }
+  for(const k in bests){
+    const b = bests[k]; if(!b || !b.date) continue;
+    const d = +k.slice(0, k.indexOf('-')), slug = k.slice(k.indexOf('-') + 1);
+    const ex = resolveBySlug(d, slug, 'full') || resolveBySlug(d, slug, 'express');
+    ev.push({ date:b.date, kind:'record', icon:'🏆', label: ex ? ex.n : 'Récord', detail:`${fmtKg(b.w)} ${wUnit()}` });
+  }
+  ev.sort((a, b) => a.date < b.date ? 1 : a.date > b.date ? -1 : 0);   // más reciente primero
+  return ev.slice(0, 15);
+}
+/** Render de la línea de tiempo (§21). Mensaje honesto si aún no hay eventos. */
+function timelineHtml(){
+  const ev = timelineEvents();
+  if(!ev.length) return '<p><small>Aquí aparecerán tus entrenamientos y récords a medida que registres. 🗓️</small></p>';
+  const items = ev.map(e => `<div class="tl-item ${e.kind}">
+    <span class="tl-dot">${e.icon}</span>
+    <span class="tl-body"><b>${escapeHtml(e.label)}</b><span class="tl-detail">${e.detail}</span></span>
+    <span class="tl-date">${daysAgoLabel(e.date)}</span>
+  </div>`).join('');
+  return `<div class="timeline">${items}</div>`;
+}
 /** Bloque de cabecera del Dashboard (Nivel 1 · §16/§17/§26): Score + Salud + media
     de las últimas 4 sesiones. Lo primero que ve el usuario al abrir Progreso. */
 function progressHeadlineHtml(){
@@ -1780,6 +1810,8 @@ function renderProgress(){
     ${progressByExerciseHtml()}
     <h3>Constancia · últimas semanas</h3>
     ${heatHtml}
+    <h3>Línea de tiempo 🗓️</h3>
+    ${timelineHtml()}
     <h3>Logros</h3>
     ${achievementsHtml()}
     <h3>Volumen por día</h3>

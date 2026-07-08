@@ -394,6 +394,20 @@ footer p{margin:0 0 8px;} footer b{color:var(--text);}
   text-transform:uppercase; color:var(--muted); background:color-mix(in srgb,var(--upper) 14%,transparent);
   border-radius:99px; padding:1px 7px; vertical-align:middle;}
 .forecast-note{margin:6px 2px 0; color:var(--muted);}
+/* Línea de tiempo (NEXT §21): entrenamientos + récords en un mismo lugar */
+.timeline{display:flex; flex-direction:column; position:relative; margin:2px 0 4px; padding-left:6px;}
+.tl-item{display:flex; align-items:center; gap:10px; padding:7px 0; position:relative;}
+.tl-item::before{content:""; position:absolute; left:15px; top:0; bottom:0; width:2px;
+  background:color-mix(in srgb,var(--border) 80%,transparent);}
+.tl-item:first-child::before{top:50%;} .tl-item:last-child::before{bottom:50%;}
+.tl-dot{flex:0 0 auto; width:30px; height:30px; border-radius:50%; display:grid; place-content:center;
+  font-size:14px; background:var(--surface-2); border:1px solid var(--border); position:relative; z-index:1;}
+.tl-item.record .tl-dot{border-color:color-mix(in srgb,var(--legs) 55%,transparent);}
+.tl-body{flex:1; min-width:0; display:flex; flex-direction:column; line-height:1.25;}
+.tl-body b{font-size:13px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+.tl-detail{font-size:11px; color:var(--muted); font-variant-numeric:tabular-nums;}
+.tl-item.record .tl-detail{color:var(--legs);}
+.tl-date{flex:0 0 auto; font-size:10.5px; color:var(--muted);}
 
 /* === Panel de progreso: tarjetas resumen + gráficas === */
 .stat-cards{display:flex; gap:8px; margin:2px 0 10px;}

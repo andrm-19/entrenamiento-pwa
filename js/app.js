@@ -195,6 +195,9 @@ function slugify(name){
 }
 // Congelamos un id estable (slug) en cada ejercicio del plan (una sola vez, al arrancar).
 freezeExerciseIds();
+// Copia PRISTINA del plan por defecto (antes de aplicar ediciones): permite "Restaurar
+// plan original" en el editor (spec §46). Dato puro serializable -> clon por JSON.
+const DEFAULT_SCHEDULE = JSON.parse(JSON.stringify(SCHEDULE));
 
 /* --- Utilidades de fecha (complementan las de §2) --- */
 function ymd(dt){ const y=dt.getFullYear(), m=String(dt.getMonth()+1).padStart(2,'0'), d=String(dt.getDate()).padStart(2,'0'); return `${y}-${m}-${d}`; }
@@ -385,6 +388,15 @@ const RoutineRepository = {
       IDB.set(this.KEY, json);       // durable (async, fire-and-forget)
       return true;
     }catch(e){ return false; }
+  },
+  /** Borra el override de un día (para "Restaurar plan original", spec §46). */
+  removeDay(dow){
+    try{
+      const ov = this.loadSync(); if(!ov || !(dow in ov)) return;
+      delete ov[dow];
+      const json = JSON.stringify(ov);
+      DB.write(this.KEY, json); IDB.set(this.KEY, json);
+    }catch(e){ /* sin persistencia: queda en memoria */ }
   },
   /** Mergea un objeto de overrides sobre SCHEDULE en memoria. Devuelve si cambió. */
   _merge(ov){
@@ -1333,6 +1345,11 @@ function onFieldChange(e){
     if(day.ex && day.ex[i]){ day.ex[i][field] = el.value; persistRoutineDebounced(); }
     return;
   }
+  if(k === 'editday'){   // editor de rutina: nombre/subtítulo del día
+    SCHEDULE[current][el.dataset.field] = el.value;
+    persistRoutineDebounced();
+    return;
+  }
 
   if(k === 'done'){
     done[key] = el.checked;
@@ -1389,6 +1406,12 @@ function onViewClick(e){
 
   const addex = e.target.closest('[data-addex]');
   if(addex){ routineAddExercise(); return; }
+
+  const dup = e.target.closest('[data-dupday]');
+  if(dup){ routineDuplicateTo(+dup.dataset.dupday); return; }
+
+  const rst = e.target.closest('[data-resetroutine]');
+  if(rst){ routineReset(); return; }
 
   const rest = e.target.closest('[data-rest]');
   if(rest){ startRest(+rest.dataset.rest); return; }
@@ -1695,7 +1718,7 @@ function newExercise(){
     n:'Nuevo ejercicio', p:'', s:'3', r:'8–12', d:'90 s', m:[], q:'', tech:[] };
 }
 /** Persiste el día editado (ejercicios + variante exprés) en IndexedDB. */
-function persistRoutine(){ const d = SCHEDULE[current]; return RoutineRepository.saveDay(current, { ex:d.ex, express:d.express }); }
+function persistRoutine(){ const d = SCHEDULE[current]; return RoutineRepository.saveDay(current, { ex:d.ex, express:d.express, type:d.type, sub:d.sub }); }
 const persistRoutineDebounced = debounce(persistRoutine, 400);
 
 /** Recalcula los índices 'base' de la variante exprés tras reordenar/eliminar,
@@ -1746,6 +1769,27 @@ function routineAddExercise(){
   persistRoutine();
   render();
 }
+/** Duplica la rutina del día actual en otro día (spec §46 · duplicar). */
+function routineDuplicateTo(targetDow){
+  const src = SCHEDULE[current], tgt = SCHEDULE[targetDow];
+  if(!tgt || tgt.rest) return;
+  tgt.ex = JSON.parse(JSON.stringify(src.ex));
+  if(src.express) tgt.express = JSON.parse(JSON.stringify(src.express));
+  freezeExerciseIds();
+  RoutineRepository.saveDay(targetDow, { ex:tgt.ex, express:tgt.express, type:tgt.type, sub:tgt.sub });
+  showToast(`Rutina copiada a ${tgt.label} ✓`, 'success');
+}
+/** Restaura el plan por defecto de este día, descartando las ediciones (spec §46). */
+async function routineReset(){
+  const ok = await confirmDialog('Restaurar plan original',
+    `Se descartarán tus cambios en ${SCHEDULE[current].label} y volverá el plan por defecto. ¿Continuar?`, 'Restaurar');
+  if(!ok) return;
+  SCHEDULE[current] = JSON.parse(JSON.stringify(DEFAULT_SCHEDULE[current]));
+  RoutineRepository.removeDay(current);
+  freezeExerciseIds();
+  render();
+  showToast('Plan original restaurado ✓', 'success');
+}
 
 /** Vista del editor (reemplaza la vista normal del día en modo edición). */
 function renderRoutineEditor(day){
@@ -1767,12 +1811,25 @@ function renderRoutineEditor(day){
         <label>Descanso<input value="${escapeAttr(e.d || '')}" data-k="edit" data-i="${i}" data-field="d" placeholder="90 s" aria-label="Descanso ${i + 1}"></label>
       </div>
     </div>`).join('');
+  const dupChips = ORDER.filter(d => d !== current && !SCHEDULE[d].rest)
+    .map(d => `<button class="chipbtn" type="button" data-dupday="${d}">${SCHEDULE[d].label}</button>`).join('');
   return `<section class="dayhead"><div class="dayhead-main">
       <div class="daytype">Editar rutina</div>
-      <div class="daysub">${day.label} · ${day.type} — añade, quita, reordena o ajusta tus ejercicios. Se guarda solo.</div>
+      <div class="daysub">${day.label} — renombra, añade, quita, reordena o ajusta. Se guarda solo.</div>
     </div></section>
+    <div class="ed-meta">
+      <label class="ed-metafield">Nombre de la rutina
+        <input class="ed-name" value="${escapeAttr(day.type || '')}" data-k="editday" data-field="type" placeholder="Empuje" aria-label="Nombre de la rutina"></label>
+      <label class="ed-metafield">Subtítulo
+        <input class="ed-purpose" value="${escapeAttr(day.sub || '')}" data-k="editday" data-field="sub" placeholder="Pecho · Hombro · Tríceps" aria-label="Subtítulo de la rutina"></label>
+    </div>
     <div class="ed-list">${rows}</div>
     <button class="ed-add" type="button" data-addex>＋ Añadir ejercicio</button>
+    <div class="ed-tools">
+      <div class="ed-tools-lbl">Duplicar esta rutina en otro día</div>
+      <div class="chip-row">${dupChips || '<small>No hay otros días disponibles.</small>'}</div>
+      <button class="ed-reset" type="button" data-resetroutine>↺ Restaurar plan original de este día</button>
+    </div>
     <button class="finish-btn" type="button" onclick="toggleEditMode(false)">✓ Listo</button>`;
 }
 

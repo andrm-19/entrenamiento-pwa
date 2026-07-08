@@ -304,6 +304,22 @@ footer p{margin:0 0 8px;} footer b{color:var(--text);}
   font-family:inherit; font-weight:700; font-size:13px; padding:12px; border-radius:12px; cursor:pointer;
   margin-bottom:12px; transition:border-color .15s, transform .1s;}
 .ed-add:active{transform:scale(.98);} .ed-add:hover{border-color:var(--accent);}
+/* Cabecera del editor: nombre + subtítulo de la rutina */
+.ed-meta{display:flex; flex-direction:column; gap:9px; margin:2px 0 12px;}
+.ed-metafield{display:flex; flex-direction:column; gap:5px; font-size:9.5px; font-weight:700;
+  letter-spacing:.06em; text-transform:uppercase; color:var(--muted);}
+.ed-metafield input{width:100%; box-sizing:border-box; background:var(--surface-2); border:1px solid var(--border);
+  border-radius:10px; color:var(--text); font-family:inherit; font-weight:700; padding:10px 11px;}
+.ed-metafield input:first-of-type,.ed-metafield input{font-size:14px;}
+.ed-metafield input:focus{outline:none; border-color:var(--accent);}
+/* Herramientas del editor: duplicar + restaurar */
+.ed-tools{margin:4px 0 10px; padding:12px; border:1px solid var(--border); border-radius:12px; background:var(--surface-2);}
+.ed-tools-lbl{font-size:11px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:var(--muted); margin-bottom:8px;}
+.ed-tools .chip-row{flex-wrap:wrap; gap:7px;}
+.ed-reset{width:100%; margin-top:11px; background:transparent; border:1px solid color-mix(in srgb,#ff6b6b 40%,var(--border));
+  color:#ff8a8a; font-family:inherit; font-weight:700; font-size:12.5px; padding:10px; border-radius:11px; cursor:pointer;
+  transition:transform .1s, border-color .12s;}
+.ed-reset:active{transform:scale(.98);} .ed-reset:hover{border-color:#ff6b6b;}
 
 /* "Descanso" como botón que abre el cronómetro */
 .stat-rest{cursor:pointer; font-family:inherit; transition:transform .1s, border-color .15s;}

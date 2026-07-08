@@ -187,6 +187,17 @@ footer p{margin:0 0 8px;} footer b{color:var(--text);}
 .volume{margin:16px 0 4px; padding:12px 14px; border-radius:12px; font-size:13px; color:var(--text);
   background:color-mix(in srgb, var(--accent) 12%, var(--surface)); border:1px solid color-mix(in srgb, var(--accent) 35%, transparent);}
 .volume b{font-variant-numeric:tabular-nums; font-size:15px;}
+/* Volumen en vivo (NEXT §11): tira de chips entreno/semana/mes/año + músculos */
+.vstrip{display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:6px;}
+.vchip{display:flex; flex-direction:column; align-items:center; gap:2px; padding:7px 4px;
+  border-radius:10px; background:color-mix(in srgb, var(--accent) 8%, var(--surface-2)); border:1px solid var(--border);}
+.vchip-l{font-size:8.5px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:var(--muted);}
+.vchip b{font-size:13px; font-variant-numeric:tabular-nums;}
+.vmus-row{display:flex; flex-wrap:wrap; gap:5px; margin-top:8px;}
+.vmus{font-size:11px; font-weight:600; color:var(--muted); padding:3px 8px; border-radius:999px;
+  background:var(--surface-2); border:1px solid var(--border);}
+.vcmp{margin-top:8px; font-size:12px; font-weight:700;}
+.vcmp.up{color:var(--legs);} .vcmp.down{color:var(--push);}
 
 /* Check ahora es un <label> con checkbox real (oculto) para el Observer */
 .check{position:relative;}
@@ -585,6 +596,21 @@ footer p{margin:0 0 8px;} footer b{color:var(--text);}
 .sum-card.gold b{color:var(--legs);}
 .sum-cmp{text-align:center; font-size:12.5px; font-weight:700; margin:2px 0 6px; padding:8px; border-radius:10px; background:var(--surface-2);}
 .sum-cmp.up{color:var(--legs);} .sum-cmp.down{color:var(--push);}
+/* Resumen final rediseñado (NEXT §12): tres secciones ¿Qué hice/Cómo me fue/Progreso? */
+.sum-sec{margin:14px 0; padding:14px; border-radius:14px; background:var(--surface); border:1px solid var(--border);}
+.sum-q{margin:0 0 10px; font-size:13px; font-weight:800; letter-spacing:.01em; color:var(--text);}
+.sum-map{display:flex; justify-content:center; margin-top:10px;}
+.sum-map .mini{display:flex; gap:10px; justify-content:center;}
+.sum-map svg{height:120px; width:auto;}
+.sum-mus-row{display:flex; flex-wrap:wrap; gap:6px; justify-content:center; margin-top:10px;}
+.sum-mus{font-size:11px; font-weight:600; color:var(--muted); padding:4px 9px; border-radius:999px; background:var(--surface-2); border:1px solid var(--border);}
+.sum-records{text-align:center; font-size:13px; font-weight:700; color:var(--legs); margin-bottom:8px;}
+.sum-goals{text-align:center; font-size:12.5px; font-weight:700; color:var(--legs); margin-top:6px;}
+.sum-muted{text-align:center; font-size:12px; color:var(--muted);}
+.sum-insights{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px;}
+.sum-insights li{font-size:13px; line-height:1.4; padding:10px 12px; border-radius:11px; background:var(--surface-2); border:1px solid var(--border);}
+.sum-next{margin-top:10px; font-size:12.5px; line-height:1.45; padding:10px 12px; border-radius:11px;
+  background:color-mix(in srgb, var(--accent, var(--primary)) 10%, var(--surface-2)); border:1px solid var(--border);}
 
 /* ============================================================
    Fase E — Configuración: engranaje, segmentos, chips y logros

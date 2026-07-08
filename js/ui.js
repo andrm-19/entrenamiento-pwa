@@ -474,9 +474,20 @@ function refreshSets(i){
    7e. CRONÓMETRO DE DESCANSO  (toca "Descanso" para iniciarlo)
    ---------------------------------------------------------------- */
 let restTimerId = null, restLeft = 0, restEndId = null, restHideId = null, restPaused = false, restMuted = false;
+let restStartedAt = 0;   // Motor 2.0 (§10): marca de inicio del descanso en curso (0 = no hay).
+/** Suma el descanso realmente transcurrido a la sesión del día (tiempo medido, §10).
+    El tiempo ACTIVO se deriva luego (total de pared − descanso), sin acumular error. */
+function accrueRest(){
+  if(!restStartedAt) return;
+  const s = sessions[dateOfDay(current)];
+  if(s && s.startedAt){ s.restMs = (s.restMs || 0) + Math.max(0, Date.now() - restStartedAt); s.updatedAt = Date.now(); }
+  restStartedAt = 0;
+}
 function startRest(seconds){
   const bar = document.getElementById('restTimer');
   if(!bar) return;
+  accrueRest();                                // cierra cualquier descanso anterior abierto
+  restStartedAt = Date.now();                  // arranca la medición real de este descanso
   if(restDefault > 0) seconds = restDefault;   // Fase E: descanso por defecto configurable
   // Cancela cualquier temporizador pendiente (evita que un descanso anterior
   // oculte el nuevo a mitad de camino: ese era el bug del "reloj que no se va").
@@ -525,6 +536,7 @@ function paintRest(){
   if(t) t.textContent = `${mm}:${String(ss).padStart(2,'0')}`;
 }
 function stopRest(){
+  accrueRest();                                // registra el descanso transcurrido (§10)
   clearInterval(restTimerId); clearTimeout(restEndId);
   const bar = document.getElementById('restTimer');
   if(!bar) return;
@@ -574,8 +586,8 @@ function confettiBurst(){
 /** Marca el inicio de la sesión del día d una sola vez (al haber actividad). */
 function ensureSessionStarted(d){
   const date = dateOfDay(d);
-  const s = (sessions[date] || (sessions[date] = { dayType:d, full:{ex:{},note:''}, express:{ex:{},note:''}, startedAt:null, finishedAt:null, snapshot:null }));
-  if(!s.startedAt) s.startedAt = Date.now();
+  const s = (sessions[date] || (sessions[date] = { dayType:d, full:{ex:{},note:''}, express:{ex:{},note:''}, startedAt:null, finishedAt:null, snapshot:null, restMs:0, state:'preparado', updatedAt:null }));
+  if(!s.startedAt){ s.startedAt = Date.now(); setSessionState(date, 'en_curso'); }   // preparado → en curso (§14)
 }
 /** ¿El día d tiene alguna serie efectiva o ejercicio marcado? */
 function dayHasProgress(d){
@@ -588,28 +600,115 @@ function fmtDuration(ms){
   const min = Math.max(0, Math.round(ms / 60000)), h = Math.floor(min / 60), m = min % 60;
   return h ? `${h} h ${m} min` : `${m} min`;
 }
-/** Snapshot permanente del entreno (spec §65): resumen para cargar el dashboard rápido. */
+/** Snapshot permanente del entreno (spec §12/§65): retrato completo de la sesión
+    para el resumen final y el dashboard rápido. Añade tiempo activo/descanso,
+    músculos trabajados, récords reales (por nombre), media mensual y objetivos. */
 function buildSnapshot(d, s){
   const day = SCHEDULE[d];
-  let sets = 0, exercises = 0, records = 0, topRm = 0;
+  const today = dateOfDay(d);
+  let sets = 0, exercises = 0, topRm = 0;
+  const recordNames = [];
   visibleEx(day).forEach((e, i) => {
     const arr = setsMap[exKey(i)];
     const c = effectiveSetCount(arr);
     if(c){ exercises++; sets += c; }
     const rm = best1RM(arr); if(rm > topRm) topRm = rm;
-    const cur = (topSet(arr) || {}).w || 0, best = (bests[bestKeyFor(i, e)] || {}).w || 0;
-    if(cur > 0 && cur >= best) records++;
+    const cur = (topSet(arr) || {}).w || 0;
+    if(cur > 0){                                  // récord REAL: supera el mejor de sesiones ANTERIORES
+      const prior = exerciseHistory(d, e.id).filter(h => h.date !== today);
+      const prevBest = prior.reduce((mx, h) => Math.max(mx, h.w), 0);
+      if(cur > prevBest) recordNames.push(e.n);
+    }
   });
-  const dur = (s.startedAt && s.finishedAt) ? (s.finishedAt - s.startedAt) : 0;
-  return { date: dateOfDay(d), dayType:d, volume: dayVolumeAnyMode(d), sets, exercises, records, oneRm: Math.round(topRm), durationMs: dur };
+  const t = sessionTiming(s, sets, exercises);
+  const goalsDone = [];
+  if(goals.sessions && weekSessionsCount() >= goals.sessions) goalsDone.push('sesiones');
+  if(goals.volume && weekVolume() >= goals.volume) goalsDone.push('volumen');
+  return {
+    date: today, dayType:d, volume: dayVolumeAnyMode(d),
+    sets, exercises, records: recordNames.length, recordNames,
+    oneRm: Math.round(topRm), durationMs: t.totalMs, activeMs: t.activeMs, restMs: t.restMs,
+    avgPerExerciseMs: t.avgPerExerciseMs, avgPerSetMs: t.avgPerSetMs,
+    muscles: dayMuscleVolume(d), monthAvg: monthlyAvgSessionVolume(today.slice(0,7), today), goalsDone
+  };
+}
+/** Sesión más reciente del mismo día de rutina anterior a excludeDate (o null).
+    Sirve para comparar la sesión recién cerrada con "la última vez" (§12/§13). */
+function prevSameDaySession(dayType, excludeDate){
+  let best = null, bd = '';
+  for(const date in sessions){
+    if(date === excludeDate) continue;
+    const s = sessions[date];
+    if(s.dayType === dayType && date > bd){ bd = date; best = s; }
+  }
+  return best;
+}
+/** Insights automáticos al cerrar la sesión (spec §13): 1–3 mensajes SIEMPRE
+    respaldados por datos, nunca aleatorios, priorizando utilidad sobre motivación.
+    Centrados en la sesión recién cerrada; se completan con el contexto semanal. */
+function sessionInsights(d, snap){
+  const out = [];
+  const prev = prevSameDaySession(d, snap.date);
+  // 1) Récord real de la sesión.
+  if(snap.recordNames.length){
+    const extra = snap.recordNames.length > 1 ? ` (+${snap.recordNames.length - 1})` : '';
+    out.push(`🏆 Nuevo récord en <b>${snap.recordNames[0]}</b>${extra}.`);
+  }
+  // 2) Volumen frente a la última sesión de este mismo día.
+  if(prev){
+    const pv = sessionVolume(prev);
+    if(pv > 0 && snap.volume > 0){
+      const pct = Math.round((snap.volume - pv) / pv * 100);
+      if(pct > 0)      out.push(`📈 +${pct}% de volumen respecto a tu última sesión de ${SCHEDULE[d].type}.`);
+      else if(pct < 0) out.push(`📉 ${pct}% de volumen frente a tu última sesión de ${SCHEDULE[d].type}.`);
+    }
+    // 3) Descanso medio por serie vs. la sesión anterior.
+    const prevSets = prev.snapshot && prev.snapshot.sets;
+    if(prev.restMs && prevSets && snap.restMs && snap.sets){
+      const restPerSet = snap.restMs / snap.sets, prevPerSet = prev.restMs / prevSets;
+      const diffS = Math.round((prevPerSet - restPerSet) / 1000);
+      if(diffS >= 5)      out.push(`⏱ Tu descanso medio bajó ${diffS} s por serie.`);
+      else if(diffS <= -5) out.push(`⏱ Tu descanso medio subió ${-diffS} s por serie.`);
+    }
+  }
+  // 4) Comparación con la media mensual de sesión.
+  if(snap.monthAvg > 0 && snap.volume > 0){
+    const pct = Math.round((snap.volume - snap.monthAvg) / snap.monthAvg * 100);
+    if(Math.abs(pct) >= 5) out.push(`📊 ${pct >= 0 ? '+' : ''}${pct}% de volumen frente a tu media del mes.`);
+  }
+  // Completa con el contexto semanal ya existente si hacen falta más (nunca el
+  // marcador genérico "Registra tus series…": no aporta al cerrar una sesión).
+  for(const m of buildInsights()){
+    if(out.length >= 3) break;
+    if(m.startsWith('💡 Registra') || out.includes(m)) continue;
+    out.push(m);
+  }
+  // Si aún no hay nada útil, un cierre honesto respaldado por el propio volumen.
+  if(!out.length && snap.volume > 0) out.push(`✅ Sesión registrada: ${fmtKg(snap.volume)} ${wUnit()} de volumen en ${snap.sets} series.`);
+  return out.slice(0, 3);
+}
+/** Recomendación accionable para el próximo entreno (spec §12/§60): reutiliza la
+    sugerencia de sobrecarga/estancamiento ya existente. Explicable y opcional. */
+function nextRecommendation(d){
+  const day = SCHEDULE[d];
+  let up = null, warn = null;
+  visibleEx(day).forEach((e) => {
+    const s = progressionSuggest(e);
+    if(!s) return;
+    if(s.cls === 'warn' && !warn) warn = `${e.n}: ${s.html}`;
+    else if(s.cls === 'up' && !up) up = `${e.n}: ${s.html}`;
+  });
+  return warn || up || '';
 }
 /** Finaliza la sesión del día actual: sella la hora, calcula el snapshot y muestra el resumen. */
 function finishCurrentSession(){
   const d = current;
   if(!dayHasProgress(d)) return;                 // nada que finalizar todavía
   ensureSessionStarted(d);
+  accrueRest();                                  // cierra el descanso en curso ANTES de sellar el fin (§10)
   const date = dateOfDay(d), s = sessions[date];
   s.finishedAt = Date.now();
+  setSessionState(date, 'finalizado');           // en curso → finalizado (§14)
   s.snapshot = buildSnapshot(d, s);
   Store.save();
   stopRest();
@@ -617,31 +716,74 @@ function finishCurrentSession(){
   openPanel('summary');
   confettiBurst();
 }
-/** Resumen final del entreno (spec §43/§163). */
+/** Resumen final rediseñado (spec §12): tres bloques que responden de un vistazo
+    "¿Qué hice?", "¿Cómo me fue?" y "¿Estoy progresando?". Compatibilidad hacia
+    atrás: snapshots viejos sin los campos nuevos degradan con valores por defecto. */
 function renderSummary(d, snap){
   const host = document.getElementById('summary-body'); if(!host) return;
   const day = SCHEDULE[d] || {};
-  const curWk = weekId();
-  const prev = weeklyVolumes().filter(w => w.weekId < curWk).slice(-1)[0];
-  const weekNow = weekVolume();
-  let cmp = '';
-  if(prev && prev.volume > 0){
-    const diff = weekNow - prev.volume, pct = Math.round(diff / prev.volume * 100);
-    cmp = `<div class="sum-cmp ${diff >= 0 ? 'up' : 'down'}">${diff >= 0 ? '▲' : '▼'} ${diff >= 0 ? '+' : ''}${pct}% volumen vs. semana anterior</div>`;
+  const u = wUnit();
+  const activeMs = snap.activeMs != null ? snap.activeMs : snap.durationMs || 0;
+  const restMs = snap.restMs || 0;
+
+  // --- ¿Qué hice? ---
+  const muscleIds = Object.keys(snap.muscles || {}).sort((a, b) => snap.muscles[b] - snap.muscles[a]);
+  const map = muscleIds.length ? miniMap(muscleIds) : '';
+  const muscleChips = muscleIds.slice(0, 6)
+    .map(mu => `<span class="sum-mus">${MUSCLE_LABEL[mu] || mu}</span>`).join('');
+  const whatCards = `
+    <div class="sum-grid">
+      <div class="sum-card"><b>${fmtDuration(activeMs)}</b><span>entrenando</span></div>
+      <div class="sum-card"><b>${fmtDuration(restMs)}</b><span>descansando</span></div>
+      <div class="sum-card"><b>${fmtKg(snap.volume)}</b><span>${u} volumen</span></div>
+      <div class="sum-card"><b>${snap.sets}</b><span>series</span></div>
+      <div class="sum-card"><b>${snap.exercises}</b><span>ejercicios</span></div>
+      <div class="sum-card${snap.records ? ' gold' : ''}"><b>${snap.records}</b><span>récords 🏆</span></div>
+    </div>`;
+
+  // --- ¿Cómo me fue? --- (récords + comparaciones con la última sesión y la media mensual)
+  const prev = prevSameDaySession(d, snap.date);
+  const cmps = [];
+  if(prev){
+    const pv = sessionVolume(prev);
+    if(pv > 0){ const p = Math.round((snap.volume - pv) / pv * 100);
+      cmps.push(`<div class="sum-cmp ${p >= 0 ? 'up' : 'down'}">${p >= 0 ? '▲' : '▼'} ${p >= 0 ? '+' : ''}${p}% vs. tu última sesión de ${day.type || ''}</div>`); }
   }
+  if(snap.monthAvg > 0){ const p = Math.round((snap.volume - snap.monthAvg) / snap.monthAvg * 100);
+    cmps.push(`<div class="sum-cmp ${p >= 0 ? 'up' : 'down'}">${p >= 0 ? '▲' : '▼'} ${p >= 0 ? '+' : ''}${p}% vs. tu media mensual</div>`); }
+  const recordLine = snap.recordNames && snap.recordNames.length
+    ? `<div class="sum-records">🏆 ${snap.recordNames.map(escapeHtml).join(' · ')}</div>` : '';
+  const goalsLine = snap.goalsDone && snap.goalsDone.length
+    ? `<div class="sum-goals">✅ Objetivo semanal cumplido: ${snap.goalsDone.join(' y ')}</div>` : '';
+
+  // --- ¿Estoy progresando? --- (insights automáticos + recomendación para el próximo)
+  const insights = sessionInsights(d, snap);
+  const insightList = insights.map(m => `<li>${m}</li>`).join('');
+  const rec = nextRecommendation(d);
+  const recBlock = rec ? `<div class="sum-next"><b>Para la próxima:</b> ${rec}</div>` : '';
+
   host.innerHTML = `
     <div class="sum-hero"><div class="sum-emoji">🎉</div>
       <div class="sum-title">Entrenamiento completado</div>
       <div class="sum-sub">${day.type || ''} · ${day.label || ''}</div></div>
-    <div class="sum-grid">
-      <div class="sum-card"><b>${fmtDuration(snap.durationMs)}</b><span>duración</span></div>
-      <div class="sum-card"><b>${fmtKg(snap.volume)}</b><span>${wUnit()} volumen</span></div>
-      <div class="sum-card"><b>${snap.sets}</b><span>series</span></div>
-      <div class="sum-card"><b>${snap.exercises}</b><span>ejercicios</span></div>
-      <div class="sum-card"><b>${snap.oneRm ? fmtKg(snap.oneRm) : '—'}</b><span>1RM máx</span></div>
-      <div class="sum-card${snap.records ? ' gold' : ''}"><b>${snap.records}</b><span>récords 🏆</span></div>
+
+    <div class="sum-sec"><h3 class="sum-q">¿Qué hice?</h3>
+      ${whatCards}
+      ${map ? `<div class="sum-map">${map}</div>` : ''}
+      ${muscleChips ? `<div class="sum-mus-row">${muscleChips}</div>` : ''}
     </div>
-    ${cmp}
+
+    <div class="sum-sec"><h3 class="sum-q">¿Cómo me fue?</h3>
+      ${recordLine || (cmps.length ? '' : '<div class="sum-muted">Sigue registrando para comparar con tus sesiones anteriores.</div>')}
+      ${cmps.join('')}
+      ${goalsLine}
+    </div>
+
+    <div class="sum-sec"><h3 class="sum-q">¿Estoy progresando?</h3>
+      ${insightList ? `<ul class="sum-insights">${insightList}</ul>` : ''}
+      ${recBlock}
+    </div>
+
     <button class="panel-close" onclick="closePanels()">Cerrar ✕</button>`;
 }
 /** Recuperación automática (spec §48/§210): sesión iniciada y SIN finalizar de un
@@ -661,8 +803,8 @@ function checkRecovery(){
       <small>${day.type || ''} · ${cand.date.slice(5).replace('-', '/')}</small></div>
     <div class="rec-actions"><button class="rec-go" type="button">Continuar</button>
       <button class="rec-skip" type="button">Descartar</button></div>`;
-  bar.querySelector('.rec-go').addEventListener('click', () => { bar.remove(); if(typeof cand.s.dayType === 'number') select(cand.s.dayType); });
-  bar.querySelector('.rec-skip').addEventListener('click', () => { cand.s.finishedAt = Date.now(); Store.save(); bar.remove(); });
+  bar.querySelector('.rec-go').addEventListener('click', () => { setSessionState(cand.date, 'recuperado'); Store.save(); bar.remove(); if(typeof cand.s.dayType === 'number') select(cand.s.dayType); });
+  bar.querySelector('.rec-skip').addEventListener('click', () => { cand.s.finishedAt = Date.now(); setSessionState(cand.date, 'cancelado'); Store.save(); bar.remove(); });
   document.body.appendChild(bar);
 }
 
@@ -692,26 +834,33 @@ function updateProgress(){
   if(pb) pb.style.transform = 'scaleX(' + (total ? n/total : 0) + ')';   // 120Hz: transform, no width
 }
 
-/** Pinta "Total volumen levantado: X kg" (+ comparación con la semana previa). */
+/** Volumen en vivo (spec §11): entreno · semana · mes · año + top muscular, siempre
+    disponible durante la sesión y recalculado tras cada serie (en segundo plano). */
 function updateVolume(){
   const el = document.getElementById('volume');
   if(!el) return;
   const v = dayVolume(current);
-  let extra = '';
-  const curWk = weekId();
-  const prevWeeks = weeklyVolumes().filter(w => w.weekId < curWk);
-  if(prevWeeks.length){
-    const prev = prevWeeks[prevWeeks.length - 1].volume || 0;
-    const weekNow = weekVolume();
-    if(prev > 0){
-      const diff = weekNow - prev;
-      const sign = diff >= 0 ? '+' : '−';
-      extra = ` · semana ${fmtKg(weekNow)} ${wUnit()} (${sign}${fmtKg(Math.abs(diff))} vs. anterior)`;
-    }
+  if(v <= 0){ el.innerHTML = `🏋️ Registra peso y reps para ver tu volumen en vivo`; return; }
+  const today = ymd(now);
+  const wk = weekVolume();
+  const mo = (monthlyVolumes().find(m => m.key === today.slice(0,7)) || {}).volume || 0;
+  const yr = (yearlyVolumes().find(y => y.key === today.slice(0,4)) || {}).volume || 0;
+  const u = wUnit();
+  const chip = (lbl, val) => `<span class="vchip"><span class="vchip-l">${lbl}</span><b>${fmtKg(val)} ${u}</b></span>`;
+  // Comparación con la semana anterior (contexto rápido de progreso).
+  const prevWeeks = weeklyVolumes().filter(w => w.weekId < weekId());
+  let cmp = '';
+  const prev = prevWeeks.length ? (prevWeeks[prevWeeks.length - 1].volume || 0) : 0;
+  if(prev > 0){
+    const diff = wk - prev, sign = diff >= 0 ? '+' : '−';
+    cmp = `<div class="vcmp ${diff >= 0 ? 'up' : 'down'}">${diff >= 0 ? '▲' : '▼'} ${sign}${fmtKg(Math.abs(diff))} ${u} vs. semana anterior</div>`;
   }
-  el.innerHTML = v > 0
-    ? `🏋️ Total volumen levantado: <b>${fmtKg(v)} ${wUnit()}</b>${extra}`
-    : `🏋️ Registra peso y reps para ver tu volumen total`;
+  // Reparto por grupo muscular del día (top 3): qué estás trabajando ahora mismo.
+  const mv = dayMuscleVolume(current);
+  const top = Object.keys(mv).sort((a,b)=>mv[b]-mv[a]).slice(0,3)
+    .map(mu => `<span class="vmus">${MUSCLE_LABEL[mu] || mu} · ${fmtKg(mv[mu])}</span>`).join('');
+  el.innerHTML = `<div class="vstrip">${chip('Entreno', v)}${chip('Semana', wk)}${chip('Mes', mo)}${chip('Año', yr)}</div>`
+    + (top ? `<div class="vmus-row">${top}</div>` : '') + cmp;
 }
 
 /* ----------------------------------------------------------------

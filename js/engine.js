@@ -176,6 +176,67 @@ function dayVolumeAnyMode(d){
   return Math.round(total);
 }
 
+/* ----------------------------------------------------------------
+   MOTOR 2.0 · TIEMPO PRECISO, ESTADO Y AGREGADOS DE SESIÓN
+   (ENTRENO V NEXT · Cap. I · §10/§11/§12/§14)
+   ------------------------------------------------------------
+   El motor deja de solo GUARDAR la sesión: empieza a medirla. El descanso
+   se cronometra con exactitud (límites del temporizador start/stop); el
+   tiempo activo se DERIVA (total de pared − descanso) para no acumular
+   error. Todo son campos opcionales en sessions[fecha]; nada se rompe si
+   faltan. Cálculo en segundo plano (principio 3.1). --- */
+
+/** Desglose de tiempo de una sesión (spec §10). Descanso medido, activo derivado.
+    setCount/exCount opcionales: si se pasan, calcula promedios por serie/ejercicio. */
+function sessionTiming(sess, setCount, exCount){
+  if(!sess) return { activeMs:0, restMs:0, totalMs:0, avgPerExerciseMs:0, avgPerSetMs:0 };
+  const total = (sess.startedAt && sess.finishedAt) ? Math.max(0, sess.finishedAt - sess.startedAt) : 0;
+  const rest  = Math.max(0, sess.restMs || 0);
+  const active = total > 0 ? Math.max(0, total - rest) : 0;   // sin fin aún: no derivamos activo
+  return {
+    activeMs: active, restMs: rest, totalMs: total,
+    avgPerExerciseMs: exCount  ? Math.round(active / exCount)  : 0,
+    avgPerSetMs:      setCount ? Math.round(active / setCount) : 0
+  };
+}
+
+/** Estados internos de la sesión (spec §14). El primero es el inicial. */
+const SESSION_STATES = ['preparado','en_curso','pausado','finalizado','recuperado','cancelado','sincronizado'];
+/** Estado actual de una sesión: el explícito, o el derivado de sus marcas de tiempo
+    (compatibilidad con sesiones anteriores a la máquina de estados). */
+function deriveSessionState(s){
+  if(s && s.state && SESSION_STATES.includes(s.state)) return s.state;
+  if(s && s.finishedAt) return 'finalizado';
+  if(s && s.startedAt)  return 'en_curso';
+  return 'preparado';
+}
+/** Escribe el estado de la sesión de una fecha y sella updatedAt (base sync, §44).
+    updatedAt en CADA escritura habilita la futura resolución de conflictos sin
+    tocar el dominio. Solo estados válidos; ignora fechas inexistentes. */
+function setSessionState(date, state){
+  const s = sessions[date];
+  if(!s || !SESSION_STATES.includes(state)) return;
+  s.state = state;
+  s.updatedAt = Date.now();
+}
+
+/** Volumen por grupo muscular de UN día (reparte el de cada ejercicio entre sus
+    músculos). Igual criterio que muscleVolumeThisWeek pero acotado al día d. */
+function dayMuscleVolume(d){
+  const vol = {};
+  for(const key in setsMap){
+    const m = key.match(/^(x?)(\d+)-(\d+)$/);
+    if(!m || +m[2] !== d) continue;
+    const e = resolveExercise(+m[2], +m[3], m[1] === 'x');
+    if(!e || !e.m || !e.m.length) continue;
+    const v = setsVolume(setsMap[key]);
+    if(!v) continue;
+    const share = v / e.m.length;
+    e.m.forEach(mu => { vol[mu] = (vol[mu] || 0) + share; });
+  }
+  return vol;
+}
+
 /**
  * Gráfica de barras en SVG puro (sin dependencias).
  * data: [{ label, value, hot }]  -> hot resalta la barra (p. ej. hoy).

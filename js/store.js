@@ -110,19 +110,26 @@ const IDB = {
 let idbReconciled = false;
 
 const Store = {
-  KEY:    'entrenoV.state.v3',
+  KEY:    'entrenoV.state.v4',
+  KEY_V3: 'entrenoV.state.v3',
   KEY_V2: 'entrenoV.state.v2',
   KEY_V1: 'entrenoV.state.v1',
 
-  /** Carga la v3 (o migra en cadena v1→v2→v3) y deja todo hidratado en memoria.
-      Las versiones anteriores NO se borran: quedan como respaldo silencioso. */
+  /** Carga la v4 (o migra en cadena v1→v2→v3→v4) y deja todo hidratado en memoria.
+      Las versiones anteriores NO se borran: quedan como respaldo silencioso.
+      v3 → v4 (Motor 2.0): el esquema de sesiones es compatible; solo se AÑADEN
+      campos opcionales (state/updatedAt/restMs). applyState los deriva y save()
+      sella la v4 sin perder nada. */
   load(){
     try{
-      const rawV3 = DB.read(this.KEY);
-      if(rawV3){ applyState(JSON.parse(rawV3)); return; }
+      const rawV4 = DB.read(this.KEY);
+      if(rawV4){ applyState(JSON.parse(rawV4)); return; }
+
+      const rawV3 = DB.read(this.KEY_V3);
+      if(rawV3){ applyState(JSON.parse(rawV3)); this.save(); return; }
 
       // v2 → v3: el esquema de sesiones es compatible (las series ya eran array).
-      // applyState hidrata (type='efectiva' por defecto) y save() sella la v3.
+      // applyState hidrata (type='efectiva' por defecto) y save() sella la versión.
       const rawV2 = DB.read(this.KEY_V2);
       if(rawV2){ applyState(JSON.parse(rawV2)); this.save(); return; }
 
@@ -161,7 +168,7 @@ const Store = {
     try{
       syncSessionsFromWorking();
       const json = JSON.stringify({
-        schemaVersion: 3,
+        schemaVersion: 4,
         ui: { current, studyMode, bannerHidden, theme, restDefault, goals, unit },
         sessions,
         bests,
@@ -275,6 +282,14 @@ function applyState(st){
   Object.assign(sessions, (st && st.sessions) || {});
   Object.assign(bests, (st && st.bests) || {});
   Object.assign(legacyHistory, (st && st.legacyHistory) || {});
+  // v3→v4 (Motor 2.0): sella un estado explícito y un updatedAt a cada sesión que
+  // aún no los tenga (derivados de sus marcas de tiempo). No sobrescribe los ya
+  // presentes; base sync-ready (§14/§44). Sesiones previas quedan bien clasificadas.
+  for(const date in sessions){
+    const s = sessions[date];
+    if(!s.state)     s.state = deriveSessionState(s);
+    if(!s.updatedAt) s.updatedAt = s.finishedAt || s.startedAt || null;
+  }
   hydrateWorkingMaps();     // reconstruye done/loads/notes de la semana actual
 }
 
@@ -334,7 +349,9 @@ function syncSessionsFromWorking(){
     if(sessions[date] || Object.keys(fullEx).length || Object.keys(expEx).length || fullNote || expNote){
       const meta = sessions[date] || {};   // conserva el ciclo de vida de la sesión (Fase C)
       sessions[date] = { dayType:d, full:{ex:fullEx, note:fullNote}, express:{ex:expEx, note:expNote},
-        startedAt: meta.startedAt || null, finishedAt: meta.finishedAt || null, snapshot: meta.snapshot || null };
+        startedAt: meta.startedAt || null, finishedAt: meta.finishedAt || null, snapshot: meta.snapshot || null,
+        // Motor 2.0 (§10/§14): tiempo de descanso medido, estado y sello de cambio.
+        restMs: meta.restMs || 0, state: meta.state || null, updatedAt: meta.updatedAt || null };
     }
   }
 }
@@ -441,6 +458,18 @@ function yearlyVolumes(){
   const by = {};
   for(const date in sessions){ const y = date.slice(0,4); by[y] = (by[y]||0) + sessionVolume(sessions[date]); }
   return Object.keys(by).sort().map(y => ({ key:y, volume:Math.round(by[y]) }));
+}
+/** Volumen medio POR SESIÓN de un mes ("YYYY-MM"), excluyendo opcionalmente una
+    fecha (la de hoy) para comparar la sesión recién cerrada contra las previas
+    del mes (spec §12 · comparación con la media mensual). 0 si no hay referencia. */
+function monthlyAvgSessionVolume(monthKey, excludeDate){
+  let sum = 0, n = 0;
+  for(const date in sessions){
+    if(date.slice(0,7) !== monthKey || date === excludeDate) continue;
+    const v = sessionVolume(sessions[date]);
+    if(v > 0){ sum += v; n++; }
+  }
+  return n ? Math.round(sum / n) : 0;
 }
 /** Comparativas de progreso (spec §74): semana actual vs 1/4/12 semanas atrás (%). */
 function progressionComparison(){

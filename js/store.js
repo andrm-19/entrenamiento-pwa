@@ -169,7 +169,7 @@ const Store = {
       syncSessionsFromWorking();
       const json = JSON.stringify({
         schemaVersion: 4,
-        ui: { current, studyMode, bannerHidden, theme, restDefault, goals, unit, levelSeen, coachMode },
+        ui: { current, studyMode, bannerHidden, theme, restDefault, goals, unit, levelSeen, coachMode, objectives },
         sessions,
         bests,
         legacyHistory
@@ -281,6 +281,7 @@ function applyState(st){
   unit         = (ui.unit === 'lb') ? 'lb' : 'kg';
   levelSeen    = +ui.levelSeen || 0;
   coachMode    = !!ui.coachMode;
+  objectives   = Array.isArray(ui.objectives) ? ui.objectives : [];
   Object.assign(sessions, (st && st.sessions) || {});
   Object.assign(bests, (st && st.bests) || {});
   Object.assign(legacyHistory, (st && st.legacyHistory) || {});

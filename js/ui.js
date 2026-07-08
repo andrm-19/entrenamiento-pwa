@@ -1122,6 +1122,9 @@ function renderSettings(){
       <input type="number" inputmode="numeric" min="0" max="14" value="${goals.sessions || ''}" placeholder="0" onchange="setGoal('sessions', this.value)" aria-label="Meta de sesiones por semana"></label>
     <label class="goal-field">Volumen semanal (${wUnit()})
       <input type="number" inputmode="numeric" min="0" step="500" value="${goals.volume ? Math.round(toDisp(goals.volume)) : ''}" placeholder="0" onchange="setGoal('volume', this.value)" aria-label="Meta de volumen semanal"></label>
+    <h3>Objetivos personales 🎯</h3>
+    <p><small>Crea tus propios objetivos; su progreso y tus retos del mes aparecen en la pestaña Progreso.</small></p>
+    ${objectivesEditorHtml()}
     <h3>Glosario</h3>
     <details class="acc"><summary><span class="acc-ico">💡</span> ¿Qué es el RIR?</summary><div class="gloss"><b>Repeticiones en reserva.</b> Cuántas repeticiones más podrías haber hecho antes de fallar. RIR 2 = te quedaban 2; RIR 0 = fallo total. Para ganar músculo, apunta a RIR 0–3.</div></details>
     <details class="acc"><summary><span class="acc-ico">🔢</span> ¿Qué son las reps?</summary><div class="gloss"><b>Repeticiones:</b> cuántas veces levantas el peso en una serie. «70 ${wUnit()} × 10» = diez repeticiones con 70 kg. Un grupo de reps seguidas es una <b>serie</b>; descansas entre series.</div></details>
@@ -1541,6 +1544,9 @@ function renderProgress(){
     ${(goals.sessions || goals.volume) ? `<h3>Metas 🎯</h3>
       ${goalBar('Sesiones', weekSessionsCount(), goals.sessions, '')}
       ${goalBar('Volumen', weekNow, goals.volume, wUnit())}` : ''}
+    ${objectives.length ? `<h3>Objetivos personales 🎯</h3>${objectivesHtml()}` : ''}
+    <h3>Retos del mes 🏁</h3>
+    ${challengesHtml()}
     <h3>Intensidad de la semana</h3>
     <div class="stat-cards">
       <div class="scard k1"><b>${wm.avgWeight != null ? fmtWeight(wm.avgWeight) : '—'}</b><span>peso medio (${wUnit()})</span></div>

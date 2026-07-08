@@ -759,6 +759,10 @@ function renderSummary(d, snap){
   const goalsLine = snap.goalsDone && snap.goalsDone.length
     ? `<div class="sum-goals">✅ Objetivo semanal cumplido: ${snap.goalsDone.join(' y ')}</div>` : '';
 
+  // Análisis de la sesión (§59): veredicto breve, respaldado por datos.
+  const analysis = sessionAnalysis(d, snap);
+  const analysisLine = analysis.length ? `<div class="sum-analysis">${analysis.map(a => `<span>• ${a}</span>`).join('')}</div>` : '';
+
   // --- ¿Estoy progresando? --- (insights automáticos + recomendación para el próximo)
   const insights = sessionInsights(d, snap);
   const insightList = insights.map(m => `<li>${m}</li>`).join('');
@@ -779,6 +783,7 @@ function renderSummary(d, snap){
     <div class="sum-sec"><h3 class="sum-q">¿Cómo me fue?</h3>
       ${recordLine || (cmps.length ? '' : '<div class="sum-muted">Sigue registrando para comparar con tus sesiones anteriores.</div>')}
       ${cmps.join('')}
+      ${analysisLine}
       ${goalsLine}
     </div>
 
@@ -1556,6 +1561,8 @@ function renderProgress(){
     </div>
     <h3>Proyección 🔮</h3>
     ${trendForecastHtml()}
+    <h3>Patrones 🔍</h3>
+    ${patternsHtml()}
     <h3>Progreso por ejercicio</h3>
     ${progressByExerciseHtml()}
     <h3>Constancia · últimas semanas</h3>

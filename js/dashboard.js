@@ -180,7 +180,22 @@ function trendForecasts(){
     const prob = bestEx.r2 >= 0.5 ? 'alta' : bestEx.r2 >= 0.25 ? 'media' : 'moderada';
     out.push({ icon:'🏆', text:`Probabilidad <b>${prob}</b> de récord próximamente en <b>${bestEx.name}</b> si mantienes el ritmo.`, conf:confidenceLabel(bestEx.n, bestEx.r2) });
   }
-  return out.slice(0, 3);
+  // Predicción del próximo 1RM (spec §63): ejercicio con mejor tendencia de 1RM al alza.
+  let rmEx = null;
+  ORDER.forEach(d => {
+    const day = SCHEDULE[d]; if(day.rest || !day.ex) return;
+    day.ex.forEach(e => {
+      if(!e.id) return;
+      const rms = exerciseHistory(d, e.id).map(h => epley1RM(h.w, h.reps)).filter(x => x > 0);
+      if(rms.length < 3) return;
+      const t = linearTrend(rms);
+      const next = t.intercept + t.slope * rms.length, cur = rms[rms.length - 1];
+      if(t.slope > 0 && next > cur && (!rmEx || t.slope > rmEx.slope))
+        rmEx = { name:e.n, next, n:t.n, r2:t.r2, slope:t.slope };
+    });
+  });
+  if(rmEx) out.push({ icon:'📈', text:`Próximo 1RM estimado en <b>${rmEx.name}</b>: <b>~${fmtKg(rmEx.next)} ${wUnit()}</b>.`, conf:confidenceLabel(rmEx.n, rmEx.r2) });
+  return out.slice(0, 4);
 }
 /** Bloque de proyección para el Dashboard (§24). Siempre marca "estimaciones". */
 function trendForecastHtml(){

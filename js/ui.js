@@ -1431,6 +1431,136 @@ function currentPeriodStat(){
   if(progressRange === 'year')  return { v:(yearlyVolumes().find(y => y.key === d.slice(0,4)) || {}).volume || 0, lbl:'este año' };
   return { v:weekVolume(), lbl:'esta semana' };
 }
+/* ================================================================
+   DASHBOARD 2.0 · SCORE DE PROGRESO Y SALUD (ENTRENO V NEXT · Cap. II)
+   ------------------------------------------------------------
+   Responde de un vistazo la única pregunta del Dashboard (§16): "¿qué tan
+   bien estoy progresando?". Es el Nivel 1 de la jerarquía (§17), lo primero
+   que se ve. Ni el Score ni la Salud dependen de un único dato (§20/§23):
+   combinan constancia, frecuencia, volumen, fuerza y objetivos, y todo es
+   explicable. Reutiliza los agregados ya existentes. --- */
+
+/** Volumen de las últimas n semanas (pasadas + la actual en curso), ascendente. */
+function recentWeekVolumes(n){
+  const cur = weekId();
+  const past = weeklyVolumes().filter(w => w.weekId < cur).map(w => w.volume);
+  past.push(weekVolume());
+  return past.slice(-n);
+}
+/** Media de volumen de las últimas 4 SESIONES registradas (spec §22). 0 si no hay. */
+function last4SessionsAvgVolume(){
+  const vols = Object.keys(sessions).sort()
+    .map(d => sessionVolume(sessions[d])).filter(v => v > 0).slice(-4);
+  return vols.length ? Math.round(vols.reduce((a, b) => a + b, 0) / vols.length) : 0;
+}
+/** Fracción [0..1] de ejercicios del plan (con ≥2 sesiones) que NO están estancados,
+    y cuántos hay en total. Indicador de progresión de fuerza (spec §20). */
+function progressionRatio(){
+  let prog = 0, tracked = 0;
+  ORDER.forEach(d => {
+    const day = SCHEDULE[d]; if(day.rest || !day.ex) return;
+    day.ex.forEach(e => {
+      if(!e.id) return;
+      if(exerciseHistory(d, e.id).length < 2) return;   // sin historial suficiente
+      tracked++;
+      if(stagnationCount(d, e.id, '') < 2) prog++;       // '' = no excluye ninguna fecha
+    });
+  });
+  return { ratio: tracked ? prog / tracked : 0, tracked };
+}
+/** Score general de progreso 0–100 (spec §20): media ponderada de sub-indicadores.
+    No mide solo el peso levantado; complementa (no sustituye) las métricas sueltas. */
+function progressScore(){
+  const clamp = v => Math.max(0, Math.min(100, Math.round(v)));
+  const now = weekVolume();
+  // Constancia: proporción de semanas activas en las últimas 5 (incluida la actual).
+  const wk = recentWeekVolumes(5);
+  const constancia = clamp(wk.filter(v => v > 0).length / wk.length * 100);
+  // Frecuencia: sesiones de esta semana frente al objetivo (meta o 4 por defecto).
+  const target = goals.sessions || 4;
+  const frecuencia = clamp(weekSessionsCount() / target * 100);
+  // Volumen: tendencia frente a la media de las semanas previas (±50% ↦ 0..100).
+  const past = wk.slice(0, -1).filter(v => v > 0);
+  const avg = past.length ? past.reduce((a, b) => a + b, 0) / past.length : 0;
+  let volumen = 50;
+  if(avg > 0 && now > 0) volumen = clamp(50 + (now - avg) / avg * 100);
+  else if(now > 0) volumen = 60;
+  // Fuerza: proporción de ejercicios progresando (no estancados).
+  const pr = progressionRatio();
+  const fuerza = pr.tracked ? clamp(pr.ratio * 100) : (Object.keys(bests).length ? 60 : 50);
+  const parts = [
+    { key:'constancia', label:'Constancia', value:constancia, w:0.25 },
+    { key:'frecuencia', label:'Frecuencia', value:frecuencia, w:0.20 },
+    { key:'volumen',    label:'Volumen',    value:volumen,    w:0.25 },
+    { key:'fuerza',     label:'Fuerza',     value:fuerza,     w:0.20 }
+  ];
+  // Objetivos: solo cuenta si hay metas definidas (spec 3.2 · cada dato sirve).
+  if(goals.sessions || goals.volume){
+    let met = 0, tot = 0;
+    if(goals.sessions){ tot++; if(weekSessionsCount() >= goals.sessions) met++; }
+    if(goals.volume){ tot++; if(now >= goals.volume) met++; }
+    if(tot) parts.push({ key:'objetivos', label:'Objetivos', value:clamp(met / tot * 100), w:0.10 });
+  }
+  const tw = parts.reduce((a, p) => a + p.w, 0);
+  const score = clamp(parts.reduce((a, p) => a + p.value * p.w, 0) / tw);
+  return { score, parts };
+}
+/** Estado de salud del progreso (spec §23): SIEMPRE por múltiples indicadores,
+    nunca un único dato. Devuelve estado, tono (color) y el porqué (explicable). */
+function progressHealth(){
+  const now = weekVolume();
+  const wk = recentWeekVolumes(6);
+  const past = wk.slice(0, -1).filter(v => v > 0);
+  const avg = past.length ? past.reduce((a, b) => a + b, 0) / past.length : 0;
+  const pct = (avg > 0 && now > 0) ? Math.round((now - avg) / avg * 100) : null;
+  const rir = weeklyMetrics().avgRir;
+  const pr = progressionRatio();
+  const freqTarget = goals.sessions || 5;
+  if(now <= 0 && avg <= 0)
+    return { state:'Sin datos', tone:'neutral', why:'Registra algunas sesiones para evaluar tu progreso.' };
+  // Fatiga: volumen a la baja con RIR muy bajo (cerca del fallo sostenido).
+  if(rir != null && rir < 1 && pct != null && pct < 0)
+    return { state:'Fatiga acumulada', tone:'warn', why:`Volumen a la baja (${pct}%) con RIR medio ${rir.toFixed(1)}. Considera una semana más suave.` };
+  // Recuperación insuficiente: mucha frecuencia con poco margen.
+  if(rir != null && rir < 1.5 && weekSessionsCount() >= freqTarget)
+    return { state:'Recuperación insuficiente', tone:'warn', why:`${weekSessionsCount()} sesiones esta semana con RIR medio ${rir.toFixed(1)}. Vigila el descanso.` };
+  // Sobrecarga elevada: salto grande de volumen con poco margen.
+  if(pct != null && pct >= 40 && rir != null && rir < 1.5)
+    return { state:'Sobrecarga elevada', tone:'warn', why:`+${pct}% de volumen frente a tu media con RIR ${rir.toFixed(1)}. Sube de forma más gradual.` };
+  // Estancado: mayoría de ejercicios sin subir peso, o caída marcada de volumen.
+  if((pr.tracked >= 2 && pr.ratio <= 0.4) || (pct != null && pct <= -15))
+    return { state:'Estancado', tone:'warn', why: pr.tracked >= 2 && pr.ratio <= 0.4
+      ? `${Math.round((1 - pr.ratio) * pr.tracked)} de ${pr.tracked} ejercicios sin progresar. Cambia rango de reps o descarga.`
+      : `Volumen ${pct}% frente a tu media reciente. Revisa descanso y objetivos.` };
+  // Progresando: volumen al alza y fuerza avanzando.
+  if(pct != null && pct >= 5)
+    return { state:'Progresando', tone:'good', why:`+${pct}% de volumen frente a tu media y ${Math.round(pr.ratio * 100)}% de ejercicios en progresión.` };
+  return { state:'Estable', tone:'neutral', why: pct != null
+    ? `Volumen estable (${pct >= 0 ? '+' : ''}${pct}%) frente a tu media reciente.`
+    : 'Mantienes tu actividad; sigue registrando para ver la tendencia.' };
+}
+/** Bloque de cabecera del Dashboard (Nivel 1 · §16/§17/§26): Score + Salud + media
+    de las últimas 4 sesiones. Lo primero que ve el usuario al abrir Progreso. */
+function progressHeadlineHtml(){
+  const ps = progressScore();
+  const h = progressHealth();
+  const avg4 = last4SessionsAvgVolume();
+  const bars = ps.parts.map(p =>
+    `<div class="pscore-row"><span class="pscore-lbl">${p.label}</span>
+      <span class="pscore-track"><i style="width:${p.value}%"></i></span>
+      <span class="pscore-val">${p.value}</span></div>`).join('');
+  return `<div class="phead">
+    <div class="phead-top">
+      <div class="pscore-ring" style="--v:${ps.score}">
+        <b>${ps.score}</b><span>Score</span></div>
+      <div class="phealth ${h.tone}">
+        <div class="phealth-state">${h.state}</div>
+        <div class="phealth-why">${h.why}</div></div>
+    </div>
+    <div class="pscore-bars">${bars}</div>
+    ${avg4 > 0 ? `<div class="phead-avg">Media de tus últimas 4 sesiones: <b>${fmtKg(avg4)} ${wUnit()}</b></div>` : ''}
+  </div>`;
+}
 /** Bloque de comparativas de progreso (spec §74): responde "¿estás progresando?". */
 function progressComparisonHtml(){
   const c = progressionComparison();
@@ -1532,6 +1662,7 @@ function renderProgress(){
   const heatHtml = consistencyHeatmap(weekNow);
 
   host.innerHTML = `
+    ${progressHeadlineHtml()}
     <h3>Resumen de la semana</h3>
     <div class="stat-cards">
       <div class="scard k1"><b>${fmtKg(weekNow)}</b><span>${wUnit()} volumen</span></div>

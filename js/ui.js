@@ -1539,6 +1539,87 @@ function progressHealth(){
     ? `Volumen estable (${pct >= 0 ? '+' : ''}${pct}%) frente a tu media reciente.`
     : 'Mantienes tu actividad; sigue registrando para ver la tendencia.' };
 }
+/* --- Predicción de tendencias (spec §24/§63) --- Estimaciones, NUNCA certezas.
+   Cada proyección declara su nivel de confianza. Regresión lineal simple sobre el
+   historial ya guardado; si no hay datos suficientes, no se inventa nada. --- */
+/** Ajuste lineal por mínimos cuadrados de una serie de valores (x = índice).
+    Devuelve { slope, intercept, r2, n }. r2 mide qué tan fiable es la recta. */
+function linearTrend(values){
+  const n = values.length;
+  if(n < 2) return { slope:0, intercept: n ? values[0] : 0, r2:0, n };
+  let sx=0, sy=0, sxx=0, sxy=0;
+  values.forEach((y, x) => { sx+=x; sy+=y; sxx+=x*x; sxy+=x*y; });
+  const denom = n*sxx - sx*sx;
+  const slope = denom ? (n*sxy - sx*sy) / denom : 0;
+  const intercept = (sy - slope*sx) / n;
+  const my = sy/n;
+  let ssTot=0, ssRes=0;
+  values.forEach((y, x) => { const f = slope*x + intercept; ssTot += (y-my)**2; ssRes += (y-f)**2; });
+  const r2 = ssTot ? Math.max(0, 1 - ssRes/ssTot) : 0;
+  return { slope, intercept, r2, n };
+}
+/** Etiqueta de confianza a partir de nº de puntos y r² (§24: siempre explícita). */
+function confidenceLabel(n, r2){
+  if(n >= 6 && r2 >= 0.6) return 'confianza alta';
+  if(n >= 4 && r2 >= 0.35) return 'confianza media';
+  return 'confianza baja';
+}
+/** 1–3 proyecciones basadas en el historial (§24): evolución de volumen, tiempo
+    estimado para una meta y probabilidad de récord. Devuelve [] si faltan datos. */
+function trendForecasts(){
+  const out = [];
+  // Volumen semanal reciente (hasta 8 semanas, incluida la actual).
+  const wv = recentWeekVolumes(8).filter(v => v > 0);
+  if(wv.length >= 3){
+    const t = linearTrend(wv);
+    const next = Math.max(0, Math.round(t.intercept + t.slope * wv.length));
+    const dir = t.slope > 0 ? 'al alza' : t.slope < 0 ? 'a la baja' : 'estable';
+    const conf = confidenceLabel(t.n, t.r2);
+    out.push({ icon:'📊', text:`Proyección de volumen la próxima semana: <b>~${fmtKg(next)} ${wUnit()}</b> (tendencia ${dir}).`, conf });
+    // Tiempo estimado para la meta de volumen (solo con pendiente positiva útil).
+    if(goals.volume > 0 && t.slope > 1){
+      const cur = wv[wv.length - 1];
+      if(cur < goals.volume){
+        const weeks = Math.ceil((goals.volume - cur) / t.slope);
+        if(weeks >= 1 && weeks <= 104)
+          out.push({ icon:'🎯', text:`A este ritmo alcanzarías tu meta de volumen (<b>${fmtKg(goals.volume)} ${wUnit()}</b>) en <b>~${weeks} semana${weeks===1?'':'s'}</b>.`, conf });
+      } else {
+        out.push({ icon:'✅', text:`Ya superas tu meta de volumen semanal (<b>${fmtKg(goals.volume)} ${wUnit()}</b>).`, conf:'dato' });
+      }
+    }
+  }
+  // Probabilidad de récord: ejercicio del plan con mejor tendencia de peso al alza.
+  let bestEx = null;
+  ORDER.forEach(d => {
+    const day = SCHEDULE[d]; if(day.rest || !day.ex) return;
+    day.ex.forEach(e => {
+      if(!e.id) return;
+      const hist = exerciseHistory(d, e.id);
+      if(hist.length < 3) return;
+      const t = linearTrend(hist.map(h => h.w));
+      const best = (bests[`${d}-${e.id}`] || {}).w || 0;
+      const last = hist[hist.length - 1].w;
+      if(t.slope > 0 && best > 0 && last >= best - WEIGHT_STEP*2 && (!bestEx || t.slope > bestEx.slope))
+        bestEx = { name:e.n, slope:t.slope, r2:t.r2, n:t.n };
+    });
+  });
+  if(bestEx){
+    const prob = bestEx.r2 >= 0.5 ? 'alta' : bestEx.r2 >= 0.25 ? 'media' : 'moderada';
+    out.push({ icon:'🏆', text:`Probabilidad <b>${prob}</b> de récord próximamente en <b>${bestEx.name}</b> si mantienes el ritmo.`, conf:confidenceLabel(bestEx.n, bestEx.r2) });
+  }
+  return out.slice(0, 3);
+}
+/** Bloque de proyección para el Dashboard (§24). Siempre marca "estimaciones". */
+function trendForecastHtml(){
+  const fc = trendForecasts();
+  if(!fc.length) return '<p><small>Con unas semanas más de registro verás aquí proyecciones de tu progreso. 🔮</small></p>';
+  const items = fc.map(f => `<div class="forecast">
+    <span class="forecast-ico">${f.icon}</span>
+    <span class="forecast-txt">${f.text}${f.conf !== 'dato' ? ` <span class="forecast-conf">${f.conf}</span>` : ''}</span>
+  </div>`).join('');
+  return `<div class="forecasts">${items}</div>
+    <p class="forecast-note"><small>Son estimaciones a partir de tu historial, no certezas.</small></p>`;
+}
 /** Bloque de cabecera del Dashboard (Nivel 1 · §16/§17/§26): Score + Salud + media
     de las últimas 4 sesiones. Lo primero que ve el usuario al abrir Progreso. */
 function progressHeadlineHtml(){
@@ -1693,6 +1774,8 @@ function renderProgress(){
       <div class="chart-cap"><b>${fmtKg(cps.v)}<span class="u">${wUnit()}</span></b><span>${cps.lbl}</span></div>
       ${td.length > 1 ? svgArea(td) : '<p style="margin:4px 2px"><small>Aún no hay suficiente historial para esta vista: la curva crece con cada sesión. 📈</small></p>'}
     </div>
+    <h3>Proyección 🔮</h3>
+    ${trendForecastHtml()}
     <h3>Progreso por ejercicio</h3>
     ${progressByExerciseHtml()}
     <h3>Constancia · últimas semanas</h3>

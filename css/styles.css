@@ -384,6 +384,16 @@ footer p{margin:0 0 8px;} footer b{color:var(--text);}
 .pscore-val{flex:0 0 auto; width:24px; text-align:right; font-size:11px; font-weight:700; font-variant-numeric:tabular-nums; color:var(--text);}
 .phead-avg{margin-top:11px; font-size:11.5px; color:var(--muted);}
 .phead-avg b{color:var(--text); font-variant-numeric:tabular-nums;}
+/* Predicción de tendencias (NEXT §24): estimaciones con nivel de confianza */
+.forecasts{display:flex; flex-direction:column; gap:7px; margin:2px 0 4px;}
+.forecast{display:flex; gap:9px; align-items:flex-start; padding:10px 12px; border-radius:11px;
+  background:var(--surface-2); border:1px solid var(--border); border-left:3px solid var(--upper);}
+.forecast-ico{flex:0 0 auto; font-size:15px; line-height:1.3;}
+.forecast-txt{font-size:12.5px; line-height:1.4; color:var(--text);}
+.forecast-conf{display:inline-block; margin-left:4px; font-size:9.5px; font-weight:700; letter-spacing:.03em;
+  text-transform:uppercase; color:var(--muted); background:color-mix(in srgb,var(--upper) 14%,transparent);
+  border-radius:99px; padding:1px 7px; vertical-align:middle;}
+.forecast-note{margin:6px 2px 0; color:var(--muted);}
 
 /* === Panel de progreso: tarjetas resumen + gráficas === */
 .stat-cards{display:flex; gap:8px; margin:2px 0 10px;}

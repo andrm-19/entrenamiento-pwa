@@ -1,6 +1,6 @@
 # DECISIONS_LOG.md — Registro de Decisiones de Arquitectura (ADR)
 
-> **Versión:** 1.0 (creado por Auditoría #1)
+> **Versión:** 1.1 (ampliado por Auditoría #2 con ADR-015…017)
 >
 > **Fecha:** 2026-07-08
 >
@@ -130,6 +130,34 @@ técnica asociada (ver [`PROJECT_AUDIT.md` §3.8](./PROJECT_AUDIT.md#38-deuda-t�
 - **Decisión:** barras, área, curvas por ejercicio y heatmap se generan como strings SVG.
 - **Consecuencias:** ✅ cero peso de librerías, control total del estilo. 🟡 más código a
   mantener; sin tests de estas funciones de dibujo.
+
+---
+
+## ADR-015 · ⚠️ El respaldo cubre solo `state.v4`, no el plan de rutinas
+
+- **Contexto (hallazgo N-1, Auditoría #2):** `exportJSON`/`importJSON` operan solo sobre
+  `entrenoV.state.v4`. Las rutinas personalizadas viven en `entrenoV.plan.v1`
+  (`RoutineRepository`) y quedan **fuera** del respaldo.
+- **Decisión (de facto, no intencional):** el respaldo es parcial.
+- **Consecuencias:** ⚠️ **pérdida de datos**: restaurar en otro dispositivo (o tras limpiar
+  datos) devuelve el plan por defecto y deja el historial de ejercicios personalizados
+  huérfano (S-4). Contradice el propósito del respaldo y el MANIFESTO. **Pendiente
+  (Sprint 1):** un `StateRepository`/paquete de export que incluya ambas claves.
+
+## ADR-016 · ⚠️ Dos derivaciones distintas de "sesiones de la semana"
+
+- **Contexto (hallazgo N-2):** conviven `weekSessionsCount()` (por volumen, cualquier modo)
+  y el `sessCount` de `renderProgress` (por *checkbox done*, solo modo completo).
+- **Consecuencias:** ⚠️ dos pantallas pueden mostrar cifras distintas del mismo concepto
+  (viola "una única fuente de verdad", ENGINEERING_PRINCIPLES §5). **Pendiente:** unificar
+  en una sola función de dominio.
+
+## ADR-017 · ⚠️ Código muerto de banner conservado
+
+- **Contexto (hallazgo N-5):** `#banner` no existe en `index.html`, pero permanecen
+  `renderBanner`, `dismissBanner` y el estado `bannerHidden` (persistido).
+- **Consecuencias:** ruido y confusión para quien lee. Sin impacto funcional. **Pendiente:**
+  eliminar en el refactor (no en la fase de auditoría).
 
 ---
 

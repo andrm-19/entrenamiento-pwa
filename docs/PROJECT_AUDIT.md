@@ -1,16 +1,26 @@
 # PROJECT_AUDIT.md — Auditoría Integral de Entreno V
 
-> **Versión:** 1.0
+> **Versión:** 2.0 (revisada en la Segunda Fase de Auditoría)
 >
 > **Fecha:** 2026-07-08
 >
 > **Tipo:** Auditoría de producto + técnica + UX (solo lectura, sin cambios de comportamiento)
 >
-> **Autor:** Auditoría de arquitectura (Principal Software Architect / Product Auditor)
+> **Autor:** Auditoría de arquitectura (Principal Software Architect / Product Auditor / QA / Security)
 >
 > **Alcance:** Repositorio completo `entrenamiento-pwa` en el commit `0098004`
 >
 > **Rama:** `claude/entreno-v-audit-ojl63d`
+>
+> **Documentos especializados (Segunda Fase):**
+> [`ARCHITECTURE_AUDIT.md`](./ARCHITECTURE_AUDIT.md) ·
+> [`SECURITY_AUDIT.md`](./SECURITY_AUDIT.md) ·
+> [`PERFORMANCE_AUDIT.md`](./PERFORMANCE_AUDIT.md) ·
+> [`UX_AUDIT.md`](./UX_AUDIT.md)
+>
+> ⚠️ **La [Segunda Fase](#segunda-fase-de-auditoría--validación-correcciones-y-preparación)
+> corrige varios porcentajes y añade hallazgos que la v1.0 pasó por alto.** Donde haya
+> discrepancia, **prevalece la Segunda Fase**.
 
 ---
 
@@ -63,8 +73,175 @@ principio "la UI nunca calcula"; (4) el **Coach de "decisiones"** del manifiesto
 puros y **anclar la documentación en el repo**, antes de abrir cualquier sprint de
 funcionalidad nueva. Ver [10 Sprints](#los-próximos-10-sprints).
 
-**Cercanía a la visión (Core del MANIFESTO):** ~**70 %**. Cercanía a la visión total
-(incluyendo Social, Sync multi-dispositivo, Onboarding, Coach de decisiones): ~**38 %**.
+**Cercanía a la visión (Core del MANIFESTO):** ~**72 %** _(v1.0 decía 70 %; confirmado)_.
+Cercanía a la visión total: ~**56 %** _(v1.0 decía 38 %; **corregido al alza**, ver §
+[Segunda Fase](#segunda-fase-de-auditoría--validación-correcciones-y-preparación))_.
+
+---
+
+# Segunda Fase de Auditoría — Validación, correcciones y preparación
+
+> Esta sección es el resultado de **releer críticamente la primera auditoría**, verificar
+> afirmaciones contra el código y dejar el proyecto listo (o no) para nuevos Sprints. Es la
+> parte con **mayor autoridad** del documento.
+
+## FASE 1 · Correcciones a la primera auditoría
+
+Releí la v1.0 asumiendo que podía haberme equivocado. Encontré y corrijo lo siguiente.
+
+### A) Porcentajes mal justificados o inconsistentes
+
+La v1.0 dio porcentajes sin una fórmula reproducible; además **contradecía su propio PBS**
+(incluía Onboarding y Perfil dentro de "Core" pero puntuaba Core al 75 % ignorándolos).
+Recalculo todo con un rúbrica explícita (ver [FASE 2](#fase-2--justificación-objetiva-del-product-status)):
+
+| Módulo | v1.0 | v2.0 | Dirección | Motivo de la corrección |
+|---|---|---|---|---|
+| Core | 75 % | **60 %** | ↓ | Onboarding+Perfil (0 %) sí cuentan en el PBS; el *loop de entrenar* solo es 80 % |
+| Dashboard | 85 % | **95 %** | ↑ | Estaba infravalorado; casi todas sus capacidades están implementadas |
+| Coach | 45 % | **50 %** | ↑ | Mejor contado; matiz clave: la mitad de *decisiones* está al **10 %** |
+| Gamificación | 80 % | **75 %** | ↓ | 6 de 8 capacidades (faltan insignias-sistema y temporadas) |
+| Social | 0 % | **0 %** | = | Confirmado |
+| Sincronización | 35 % | **40 %** | ↑ | Recontado sobre las 5 capacidades canónicas (2/5). Reclasificación (ver B) |
+| Configuración | 75 % | **80 %** | ↑ | 9 de 11 capacidades implementadas |
+| Infraestructura | 50 % | **45 %** | ↓ | 4/9; sin testing/CI/auditoría/versionado central |
+| **Visión total** | 38 % | **56 %** | ↑ | 38 % era **demasiado pesimista**: Dashboard (95 %) pesa mucho |
+
+### B) Reclasificaciones
+
+- **Durabilidad local** (localStorage+IndexedDB) se contabiliza en **Infraestructura**, no
+  en Sincronización (era ambiguo en v1.0).
+- **Export CSV/PDF** se contabiliza en **Configuración/Datos**, no en Sincronización.
+- Resultado: "Sincronización" mide ahora **solo** la sincronización real (multi-dispositivo/
+  nube/conflictos), que es lo que exige la visión.
+
+### C) Hallazgos que la primera auditoría PASÓ POR ALTO
+
+Verificados en el código en esta fase (ver detalle en los documentos especializados):
+
+| ID | Hallazgo nuevo | Severidad | Documento |
+|---|---|---|---|
+| **N-1** | El **respaldo JSON no incluye las rutinas personalizadas** (`plan.v1`) → pérdida de datos al restaurar en otro dispositivo | **Alta** | [SECURITY](./SECURITY_AUDIT.md#n-1--el-respaldo-no-incluye-las-rutinas-personalizadas--alta) |
+| **N-2** | **Dos conteos divergentes** de "sesiones de la semana" (por checkbox *done* vs. por volumen) → cifras que pueden contradecirse | Media | [ARCHITECTURE §8](./ARCHITECTURE_AUDIT.md) |
+| **N-3** | La superficie **XSS es más amplia** de lo reportado: también informe **PDF** (`ui.js:1216`), tabla de Progreso (`ui.js:1603`) y nota de récord (`ui.js:1597`) | Media→Crítica | [SECURITY S-1](./SECURITY_AUDIT.md#s-1--xss-almacenado-self-xss-en-el-render--media--crítica-con-syncsocial) |
+| **N-4** | **Inyección de fórmulas CSV** en la exportación | Media | [SECURITY N-4](./SECURITY_AUDIT.md#n-4--inyección-de-fórmulas-en-csv--media) |
+| **N-5** | **Código muerto**: `#banner` no existe en `index.html`; `renderBanner`/`dismissBanner`/`bannerHidden` son vestigiales | Baja | [ARCHITECTURE §10](./ARCHITECTURE_AUDIT.md) |
+| **N-6** | Sin CSP + 31 `onclick` inline → impide endurecer con CSP estricta | Media | [SECURITY S-2](./SECURITY_AUDIT.md#s-2--sin-content-security-policy--manejadores-inline--media) |
+
+### D) Lo que confirmo (la v1.0 acertó)
+
+- "La UI calcula" (violación de capas), `ui.js` sobredimensionado, cero tests, MPS/PED
+  fuera del repo, cache-busting manual, self-XSS base, SSOT de volumen correcto, excelente
+  capa de persistencia, Coach sin decisiones. Todo **verificado y sostenido**.
+
+---
+
+## FASE 2 · Justificación objetiva del PRODUCT STATUS
+
+**Rúbrica reproducible** (cualquier auditor puede recontar):
+
+- Se enumeran las **capacidades hoja** de cada pilar (según el PBS actualizado).
+- Cada capacidad puntúa por su estado: **⬜ = 0 · 🟡 = 0.5 · 🟢 = 1.0**.
+- **Madurez de Implementación %** = `round( Σ puntos / nº capacidades × 100 )`.
+- Mide **cuánto del alcance previsto está construido**, NO cuán lista para producción está.
+  *(Producción es otro eje: todo el proyecto está topado en **Nivel 2 (Implementado)** por
+  tener 0 pruebas — ver `PRODUCT_STATUS.md`.)*
+
+| Pilar | Cálculo (Σ / N) | % |
+|---|---|---|
+| Core | 21.5 / 36 | **60 %** |
+| — *sub: loop de entrenar (Rutinas+Ejercicios+Entreno+Historial)* | 21.5 / 27 | *80 %* |
+| — *sub: Onboarding + Perfil* | 0 / 9 | *0 %* |
+| Dashboard | 16.5 / 17 | **95 %** |
+| Coach | 8.5 / 16 | **50 %** |
+| — *sub: decisiones del Coach (ocupado/cansado/dolor/sustituir)* | 0.5 / 5 | *10 %* |
+| Gamificación | 6 / 8 | **75 %** |
+| Social | 0 / 12 | **0 %** |
+| Sincronización (canónica: backup, restauración, multi, conflictos, auto) | 2 / 5 | **40 %** |
+| Configuración | 9 / 11 | **80 %** |
+| Infraestructura | 4 / 9 | **45 %** |
+
+El desglose capacidad-por-capacidad (qué existe, qué falta, con qué estado) está en
+[`PRODUCT_STATUS.md`](./PRODUCT_STATUS.md) y [`PRODUCT_BREAKDOWN_STRUCTURE.md`](./PRODUCT_BREAKDOWN_STRUCTURE.md),
+ambos actualizados a esta rúbrica.
+
+**Media no ponderada de los 8 pilares:** `(60+95+50+75+0+40+80+45)/8 = 56 %` → *visión total*.
+**Media del núcleo** (Core, Dashboard, Coach, Gamificación, Configuración):
+`(60+95+50+75+80)/5 = 72 %` → *cercanía al núcleo del MANIFESTO*.
+
+---
+
+## FASE 8 · Preparación para el desarrollo
+
+### ¿Está Entreno V preparado para seguir desarrollándose? — **NO (todavía).**
+
+**Justificación.** El producto **funciona y tiene una base valiosa**, pero **no es seguro
+construir encima hoy** por tres condiciones simultáneas: (1) **0 pruebas**, (2) **lógica de
+negocio mezclada en la UI y acoplada por globals**, y (3) un **fallo de pérdida de datos**
+(N-1) y **XSS latente** (N-3) sin resolver. Añadir features sobre esta base multiplicaría la
+deuda y el riesgo de regresión invisible. Se convierte en **SÍ** en cuanto se cierren S1–S3.
+
+### ¿Qué problemas deben resolverse antes de crear nuevas funcionalidades? (orden de prioridad)
+
+1. **Cero pruebas (A-3 / DT-1)** — sin red de seguridad, todo lo demás es a ciegas. *Bloqueante.*
+2. **N-1: respaldo no incluye rutinas** — pérdida de datos real; erosiona la confianza. *Bloqueante.*
+3. **N-3/S-1: XSS en render/PDF/tabla** — escapar campos editables antes de cualquier compartición. *Bloqueante para sync/social.*
+4. **Documentación fuente (MPS/PED) fuera del repo (DT-2)** — sin ella no hay "código vs. intención".
+5. **A-1/A-2: UI que calcula + acoplamiento por globals** — mover lógica a motores (con tests).
+6. **N-2: conteos de sesión divergentes** — una sola fuente de verdad.
+7. **DT-4/A-7: versionado disperso** — una constante `APP_VERSION`.
+
+### ¿Cuál debería ser el Sprint 1 real?
+
+**Sprint 1 = "Base segura para construir": red de pruebas + tapar las dos fugas de
+confianza (N-1 y N-3), sin añadir ninguna funcionalidad nueva.**
+
+- **Alcance:** (a) suite de pruebas unitarias sobre las funciones puras/motores
+  (`setsVolume`, `epley1RM`, `linearTrend`, `progressScore`, `progressHealth`,
+  `stagnationCount`, migraciones v1→v4, `weekVolume`); (b) **respaldo completo** que
+  incluya `state.v4` **y** `plan.v1`; (c) **escapar** los campos editables en render, PDF y
+  tabla. Todo respaldado por las pruebas de (a).
+- **Por qué este y no una feature:** N-1 y N-3 son fallos que **ya afectan al usuario** y
+  que empeoran con cada dato nuevo; y sin (a) no se puede refactorizar después con seguridad.
+- **Encaje con la doc previa:** esto sustituye al "Sprint 1/2" de la v1.0 fusionando su
+  parte crítica (pruebas + fix XSS) y **elevando N-1** al mismo nivel por ser pérdida de datos.
+
+> Nota: los Sprints 2–10 de la v1.0 siguen vigentes, corridos una posición: tras esta base
+> vienen *anclar MPS/PED + CI*, *extracción de motores*, etc. Ver
+> [Los próximos 10 Sprints](#los-próximos-10-sprints) (siguen siendo válidos como backlog).
+
+### ¿Cuál sería el mayor riesgo si empezáramos a desarrollar nuevas funciones hoy?
+
+**Regresión silenciosa e irreversible.** Con estado global mutable, sin tests y con lógica
+en la UI, un cambio para una feature nueva puede corromper el cálculo de volumen, récords o
+las migraciones **sin que nadie lo note** hasta que un usuario pierda o vea mal sus datos.
+En una app cuyo activo central es la **confianza** (MANIFESTO), ese es el peor desenlace.
+
+### ¿Qué deuda técnica es imprescindible resolver?
+
+**DT-1 (tests)**, **N-1 (respaldo completo)** y **N-3/S-1 (XSS)**. Sin estas tres, no se
+autoriza desarrollo de features. **DT-2 (MPS/PED)** es imprescindible para la trazabilidad,
+aunque no bloquea técnicamente.
+
+### ¿Qué partes están mejor diseñadas?
+
+1. **Capa de persistencia** (`DB`/`IDB` + reconciliación durable): inversión de dependencias
+   real, tolerante a fallos. Es el patrón a imitar.
+2. **Modelo de datos histórico** (sesiones fechadas + migraciones sin pérdida).
+3. **Primitiva única de volumen** (`setsVolume`) y **diseño de eventos** (un listener
+   delegado, sin fugas).
+4. **Dashboard analítico** y **gamificación honesta** (fieles al manifiesto).
+
+### ¿Qué partes deberían refactorizarse antes de crecer?
+
+1. **`ui.js`**: separar render de lógica; mover Progression/Records/Insights/métricas a
+   motores. (A-2)
+2. **Comunicación entre módulos**: de globals mutables a interfaces explícitas. (A-1)
+3. **Export/Import**: unificar en un `StateRepository` que cubra todo el estado (resuelve N-1).
+4. **`engine.js`**: dividir por cohesión (fuerza / formato / SVG). (A-6)
+5. **Versionado**: constante única `APP_VERSION`. (A-7)
+
+**Todo lo anterior se documenta; nada se implementa en esta fase.**
 
 ---
 
@@ -404,6 +581,16 @@ Superficie mínima (app local, sin backend, sin datos de terceros). Aun así:
 | DT-8 | **Fecha/semana congeladas al cargar** (cruce de medianoche) | Bajo | Baja | S6 |
 | DT-9 | **Duplicación de streak/récords** en 3 funciones | Bajo/Medio: inconsistencias sutiles | Media | S3 |
 | DT-10 | **Sin CI** (lint, test, validación de manifest/SW) | Medio | Alta | S2 |
+| **N-1** | **Respaldo no incluye rutinas personalizadas** (`plan.v1`) → pérdida de datos | Alto | **Crítica** | S1 |
+| **N-2** | **Dos conteos divergentes** de sesiones/semana (done vs. volumen) | Medio | Media | S3 |
+| **N-3** | **XSS más amplio**: render + informe PDF + tabla Progreso | Medio (→Alto con sync) | Alta | S1 |
+| **N-4** | **Inyección de fórmulas CSV** en la exportación | Medio | Media | S1 |
+| **N-5** | **Código muerto** (`#banner`/`renderBanner`/`dismissBanner`) | Bajo | Baja | S3 |
+| **N-6** | **Sin CSP** + 31 `onclick` inline (impide CSP estricta) | Medio | Media | S3 |
+
+> **Nota (Segunda Fase):** DT-5 (self-XSS) se amplía con **N-3** (afecta también al informe
+> PDF y a la tabla de Progreso, no solo al render del día). Detalle en
+> [`SECURITY_AUDIT.md`](./SECURITY_AUDIT.md).
 
 ## 3.9 Riesgos y posibles errores futuros
 
@@ -522,10 +709,11 @@ las restricciones del encargo.
 ### 1. ¿Qué tan cerca está Entreno V de su visión?
 
 - **Del núcleo del MANIFESTO (entrenar mejor, offline, datos del usuario, Coach no
-  intrusivo, no adicción): ~70 %.** El producto ya cumple su promesa central para un
-  usuario individual.
-- **De la visión completa (Social, multi-dispositivo, Onboarding, Coach de decisiones):
-  ~38 %.** Faltan pilares enteros.
+  intrusivo, no adicción): ~72 %** _(media de los 5 pilares del núcleo; ver rúbrica en la
+  Segunda Fase)_. El producto ya cumple su promesa central para un usuario individual.
+- **De la visión completa (los 8 pilares, incl. Social, multi-dispositivo, Onboarding,
+  Coach de decisiones): ~56 %** _(corregido desde el ~38 % de la v1.0, que era demasiado
+  pesimista: el Dashboard al 95 % pesa mucho)_. Faltan pilares enteros.
 
 ### 2. ¿Cuáles son los mayores riesgos?
 

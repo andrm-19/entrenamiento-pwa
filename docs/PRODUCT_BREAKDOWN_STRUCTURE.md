@@ -25,16 +25,20 @@
 
 # Mapa de estado (resumen)
 
-| Pilar | Estado | Madurez |
-|---|---|---|
-| 1. Core | 🟢 | 75 % |
-| 2. Dashboard | 🟢 | 85 % |
-| 3. Coach Engine | 🟡 | 45 % |
-| 4. Gamificación | 🟢 | 80 % |
-| 5. Social | ⬜ | 0 % |
-| 6. Sincronización | 🟡 | 35 % |
-| 7. Configuración | 🟢 | 75 % |
-| 8. Infraestructura | 🟡 | 50 % |
+> Porcentajes recalculados en la **Auditoría #2** con rúbrica reproducible (⬜0/🟡0.5/🟢1.0;
+> % = Σ/N). Ver metodología en [`PRODUCT_STATUS.md`](./PRODUCT_STATUS.md) y correcciones en
+> [`PROJECT_AUDIT.md` · FASE 1/2](./PROJECT_AUDIT.md#segunda-fase-de-auditoría--validación-correcciones-y-preparación).
+
+| Pilar | Estado | Madurez | Σ / N |
+|---|---|---|---|
+| 1. Core | 🟢 | 60 % | 21.5 / 36 |
+| 2. Dashboard | 🟢 | 95 % | 16.5 / 17 |
+| 3. Coach Engine | 🟡 | 50 % | 8.5 / 16 |
+| 4. Gamificación | 🟢 | 75 % | 6 / 8 |
+| 5. Social | ⬜ | 0 % | 0 / 12 |
+| 6. Sincronización | 🟡 | 40 % | 2 / 5 |
+| 7. Configuración | 🟢 | 80 % | 9 / 11 |
+| 8. Infraestructura | 🟡 | 45 % | 4 / 9 |
 
 ---
 
@@ -203,6 +207,8 @@
 - ⬜ **Testing** (0 %)
 - ⬜ **CI/CD**
 - ⬜ Versionado centralizado de assets/SW (hoy manual y disperso)
+- ⚠️ **Código muerto detectado (N-5):** `#banner` no existe en `index.html`;
+  `renderBanner`/`dismissBanner`/`bannerHidden` son vestigiales. Limpiar en el refactor.
 
 ---
 

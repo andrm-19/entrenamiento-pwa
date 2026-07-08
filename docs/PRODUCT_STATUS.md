@@ -1,6 +1,6 @@
 # PRODUCT_STATUS.md
 
-> **Versión:** 2.0 (actualizado por Auditoría #1)
+> **Versión:** 3.0 (recalculado en la Segunda Fase de Auditoría, con rúbrica reproducible)
 >
 > **Estado:** Documento Vivo
 >
@@ -10,6 +10,13 @@
 >
 > **Objetivo:** Mostrar el estado **real** del producto, la madurez de cada módulo y
 > servir de guía para planificar los siguientes Sprints.
+
+> **Metodología de los porcentajes (reproducible).** Se enumeran las **capacidades hoja**
+> de cada pilar (según el PBS). Cada una puntúa por estado: **⬜ = 0 · 🟡 = 0.5 · 🟢 = 1.0**.
+> **Madurez % = round(Σ / N × 100)**. Mide *cuánto del alcance está construido*, no cuán
+> lista para producción está (eso está topado en Nivel 2 para todo el proyecto por tener 0
+> pruebas). Cualquier auditor puede recontar. El desglose por capacidad está en
+> [`PRODUCT_BREAKDOWN_STRUCTURE.md`](./PRODUCT_BREAKDOWN_STRUCTURE.md).
 
 ---
 
@@ -48,17 +55,26 @@ imports); el orden de carga es un contrato implícito.
 
 # Estado General del Producto
 
-| Módulo | Estado | Madurez | Prioridad | Nota |
-|---|---|---|---|---|
-| Core | 🟢 | 75 % | Crítica | Falta editar músculos y biblioteca de ejercicios |
-| Dashboard | 🟢 | 85 % | Alta | Muy completo; riesgo de sobrecarga de UX |
-| Coach | 🟡 | 45 % | Alta | Solo pistas pasivas; faltan decisiones/sustituciones |
-| Gamificación | 🟢 | 80 % | Media | Falta "temporadas" |
-| Social | ⬜ | 0 % | Media | Sin código |
-| Sincronización | 🟡 | 35 % | Alta | Solo local; falta multi-dispositivo/nube/conflictos |
-| Configuración | 🟢 | 75 % | Baja | Falta notificaciones/privacidad |
-| Infraestructura | 🟡 | 50 % | Alta | **Sin pruebas ni CI** |
+| Módulo | Estado | Madurez | Σ / N | Prioridad | Nota |
+|---|---|---|---|---|---|
+| Core | 🟢 | **60 %** | 21.5 / 36 | Crítica | Loop de entrenar 80 %; Onboarding+Perfil 0 % |
+| Dashboard | 🟢 | **95 %** | 16.5 / 17 | Alta | Casi completo; riesgo de sobrecarga de UX |
+| Coach | 🟡 | **50 %** | 8.5 / 16 | Alta | *Decisiones/sustituciones* solo 10 % (0.5/5) |
+| Gamificación | 🟢 | **75 %** | 6 / 8 | Media | Faltan insignias-sistema y temporadas |
+| Social | ⬜ | **0 %** | 0 / 12 | Media | Sin código |
+| Sincronización | 🟡 | **40 %** | 2 / 5 | Alta | Solo backup/restore local; falta multi-dispositivo/nube/conflictos |
+| Configuración | 🟢 | **80 %** | 9 / 11 | Baja | Faltan notificaciones/privacidad |
+| Infraestructura | 🟡 | **45 %** | 4 / 9 | Alta | **Sin pruebas ni CI** |
 
+> **Corrección v2→v3 (Segunda Fase):** Core 75→60 (Onboarding/Perfil sí cuentan),
+> Dashboard 85→95, Coach 45→50, Gamificación 80→75, Sincronización 35→40 (recontada sobre
+> las 5 capacidades canónicas; durabilidad local → Infraestructura, export → Configuración),
+> Configuración 75→80, Infraestructura 50→45. Detalle y motivo en
+> [`PROJECT_AUDIT.md` · FASE 1/2](./PROJECT_AUDIT.md#segunda-fase-de-auditoría--validación-correcciones-y-preparación).
+>
+> **Media no ponderada de los 8 pilares: 56 %** (visión total).
+> **Media del núcleo (Core, Dashboard, Coach, Gamificación, Configuración): 72 %.**
+>
 > **Nota:** Ningún módulo puede marcarse "🔵 Probado" porque **no existen pruebas
 > automatizadas**. Donde hay funcionalidad estable se marca 🟢 Implementado.
 
@@ -76,7 +92,7 @@ ningún módulo hasta que exista una suite de pruebas (ver Deuda Técnica DT-1).
 
 ---
 
-# Estado del Core — 🟢 (75 %)
+# Estado del Core — 🟢 (60 %) · Σ 21.5/36
 
 ## Rutinas — 🟢
 - [x] Crear / editar / eliminar / reordenar ejercicios (editor)
@@ -103,7 +119,7 @@ ningún módulo hasta que exista una suite de pruebas (ver Deuda Técnica DT-1).
 
 ---
 
-# Dashboard — 🟢 (85 %)
+# Dashboard — 🟢 (95 %) · Σ 16.5/17
 - [x] Score de progreso 0–100 (multifactor)
 - [x] Estado de Salud (explicable)
 - [x] Comparativas (vs. semana / 4 sem / 12 sem)
@@ -114,7 +130,7 @@ ningún módulo hasta que exista una suite de pruebas (ver Deuda Técnica DT-1).
 
 ---
 
-# Coach Engine — 🟡 (45 %)
+# Coach Engine — 🟡 (50 %) · Σ 8.5/16 · *decisiones 10 %*
 - [x] Pistas contextuales por ejercicio (no intrusivas, no chatbot)
 - [x] Detección de patrones (con umbral de evidencia)
 - [x] Análisis de sesión al cerrar
@@ -126,7 +142,7 @@ ningún módulo hasta que exista una suite de pruebas (ver Deuda Técnica DT-1).
 
 ---
 
-# Gamificación — 🟢 (80 %)
+# Gamificación — 🟢 (75 %) · Σ 6/8
 - [x] Nivel + XP (solo por acciones con valor)
 - [x] Rachas conscientes de descanso (no castigan descansar)
 - [x] Logros por datos reales
@@ -136,7 +152,7 @@ ningún módulo hasta que exista una suite de pruebas (ver Deuda Técnica DT-1).
 
 ---
 
-# Social — ⬜ (0 %)
+# Social — ⬜ (0 %) · Σ 0/12
 - [ ] Perfil público / foto / biografía
 - [ ] Entrenar juntos (disponibilidad, solicitar, confirmar)
 - [ ] Comunidad (descubrir, invitaciones, bloquear, reportar)
@@ -146,10 +162,17 @@ ningún módulo hasta que exista una suite de pruebas (ver Deuda Técnica DT-1).
 
 ---
 
-# Sincronización — 🟡 (35 %)
-- [x] Backup / restauración por archivo (JSON, validado)
-- [x] Durabilidad local doble (localStorage + IndexedDB con reconciliación)
-- [x] Export CSV / PDF
+# Sincronización — 🟡 (40 %) · Σ 2/5 (canónica)
+
+> El % canónico (2/5) cuenta solo: Backup, Restauración, Multi-dispositivo, Conflictos,
+> Sync automático. **Durabilidad local** se contabiliza en Infraestructura y **Export
+> CSV/PDF** en Configuración (reclasificación de la Segunda Fase). ⚠️ El backup **no
+> incluye las rutinas personalizadas** — ver hallazgo **N-1** en
+> [`SECURITY_AUDIT.md`](./SECURITY_AUDIT.md).
+
+- [x] Backup / restauración por archivo (JSON, validado) — *pero incompleto (N-1)*
+- [x] Durabilidad local doble (localStorage + IndexedDB con reconciliación) — *cuenta en Infraestructura*
+- [x] Export CSV / PDF — *cuenta en Configuración*
 - [ ] Multi-dispositivo
 - [ ] Backup en la nube
 - [ ] Resolución de conflictos (esquema `updatedAt`/`state` "sync-ready", sin motor)
@@ -157,7 +180,7 @@ ningún módulo hasta que exista una suite de pruebas (ver Deuda Técnica DT-1).
 
 ---
 
-# Configuración — 🟢 (75 %)
+# Configuración — 🟢 (80 %) · Σ 9/11
 - [x] Tema claro/oscuro · Unidad kg/lb · Descanso por defecto
 - [x] Modo Coach on/off · Metas semanales · Objetivos personales · Glosario
 - [x] Export/Import de datos
@@ -165,7 +188,7 @@ ningún módulo hasta que exista una suite de pruebas (ver Deuda Técnica DT-1).
 
 ---
 
-# Infraestructura — 🟡 (50 %)
+# Infraestructura — 🟡 (45 %) · Σ 4/9
 - [x] Base de datos (kv sobre IndexedDB + localStorage)
 - [x] Motores (parcialmente separados)
 - [x] Caché offline (Service Worker network-first para código)
@@ -187,11 +210,14 @@ ningún módulo hasta que exista una suite de pruebas (ver Deuda Técnica DT-1).
 # Riesgos Actuales
 
 1. **Sin pruebas** → cualquier cambio es a ciegas (Crítico).
-2. **Documentación fuente (MPS/PED) fuera del repo** → trazabilidad `§` rota (Crítico).
-3. **`ui.js` mezcla render y lógica** → deuda que crece (Alto).
-4. **Cache-busting manual disperso** → despliegues rotos (Alto).
-5. **Self-XSS latente** en render de campos editables → peligroso al llegar sync/social (Alto).
-6. **Sin caché de agregados** → el Dashboard degrada con años de datos (Medio).
+2. **N-1: el respaldo no incluye las rutinas personalizadas** → pérdida de datos al
+   restaurar (Alto). *(Nuevo en Segunda Fase.)*
+3. **Documentación fuente (MPS/PED) fuera del repo** → trazabilidad `§` rota (Crítico).
+4. **`ui.js` mezcla render y lógica** + acoplamiento por globals → deuda que crece (Alto).
+5. **N-3: XSS** en render + informe PDF + tabla de Progreso → peligroso al llegar sync/social (Alto).
+6. **Cache-busting manual disperso** → despliegues rotos (Alto).
+7. **N-2: conteos de sesión divergentes** (done vs. volumen) → cifras contradictorias (Medio).
+8. **Sin caché de agregados** → el Dashboard degrada con años de datos (Medio).
 
 ---
 
@@ -208,37 +234,49 @@ congelada, Baja), DT-9 (duplicación de streak/récords, Media), DT-10 (sin CI, 
 
 # Próximo Sprint
 
-**Sprint 1 — Red de seguridad de pruebas + fix self-XSS.** Objetivo: cubrir los motores
-puros con tests unitarios y escapar los campos editables en `render()`. Resultado
-esperado: base segura para refactorizar. Detalle y dependencias en
-[`PROJECT_AUDIT.md` — Los próximos 10 Sprints](./PROJECT_AUDIT.md#los-próximos-10-sprints).
+**Sprint 1 real (Segunda Fase) — "Base segura para construir".** Objetivo: (a) suite de
+pruebas unitarias sobre los motores puros; (b) **respaldo completo** que incluya
+`state.v4` **y** `plan.v1` (resuelve N-1); (c) **escapar** los campos editables en render,
+informe PDF y tabla (resuelve N-3). **Sin funcionalidad nueva.** Resultado esperado: base
+segura y confiable para refactorizar y crecer. Detalle en
+[`PROJECT_AUDIT.md` · FASE 8](./PROJECT_AUDIT.md#fase-8--preparación-para-el-desarrollo).
 
 ---
 
 # Historial de Auditorías
 
-## Auditoría #1
+## Auditoría #1 (Primera Fase)
 - **Fecha:** 2026-07-08
-- **Resultado:** Producto con Core/Dashboard/Gamificación sólidos (~70 % de la visión
-  del núcleo). Riesgos principales: sin tests, documentación fuente fuera del repo,
-  `ui.js` sobrecargado. Coach y Sincronización parciales; Social y Onboarding ausentes.
-- **Observaciones:** los documentos de estado estaban desincronizados con el código
-  (marcaban 0 %). Este documento se corrigió a la realidad. No se cambió comportamiento.
+- **Resultado:** Producto con Core/Dashboard/Gamificación sólidos. Riesgos: sin tests,
+  documentación fuente fuera del repo, `ui.js` sobrecargado. Coach y Sincronización
+  parciales; Social y Onboarding ausentes.
+- **Observaciones:** los documentos de estado estaban al 0 % (plantilla sin inicializar).
+  Se corrigieron a la realidad. No se cambió comportamiento.
+
+## Auditoría #2 (Segunda Fase · validación)
+- **Fecha:** 2026-07-08
+- **Resultado:** se validó la Auditoría #1 y se **corrigieron porcentajes** con una rúbrica
+  reproducible (Core 75→60, Dashboard 85→95, etc.; visión total 38→56). Se añadieron
+  auditorías especializadas (Arquitectura, Seguridad, Rendimiento, UX) y **6 hallazgos
+  nuevos** (N-1 a N-6), destacando **N-1 (pérdida de datos: el respaldo no incluye rutinas)**.
+- **Veredicto:** el proyecto **NO está listo** para nuevas funcionalidades hasta cerrar la
+  base (tests + N-1 + N-3). No se cambió comportamiento.
 
 ---
 
 # Métricas del Proyecto
 
-## Producto (estimación de la Auditoría #1)
-- Cumplimiento del **MANIFESTO** (núcleo): **~70 %**
+## Producto (Auditoría #2, rúbrica reproducible)
+- Cumplimiento del **MANIFESTO** (núcleo, media de 5 pilares): **~72 %**
+- Madurez de implementación (media de 8 pilares): **~56 %**
 - Cumplimiento del **MPS**: **no verificable** (documento ausente del repo)
 - Cumplimiento del **PED**: **no verificable** (documento ausente del repo)
 
 ## Ingeniería
 - Cobertura de pruebas: **0 %**
-- Errores críticos conocidos: **0** (ninguno bloqueante detectado en la lectura)
-- Riesgos altos abiertos: **5** (ver arriba)
-- Deuda técnica registrada: **10 ítems**
+- Errores críticos conocidos: **0** bloqueante de arranque; **1 Alto** de datos (N-1)
+- Riesgos altos abiertos: **6** (ver arriba)
+- Deuda técnica registrada: **16 ítems** (DT-1…DT-10 + N-1…N-6)
 
 ---
 

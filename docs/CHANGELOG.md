@@ -9,7 +9,36 @@ lugar de SemVer. Este changelog agrupa el trabajo por fecha e hito funcional.
 
 ---
 
-## [Sin versionar] — Auditoría documental · 2026-07-08
+## [Sin versionar] — Segunda Fase de Auditoría (validación) · 2026-07-08
+
+### Añadido (solo documentación)
+- `docs/ARCHITECTURE_AUDIT.md` — auditoría exclusiva de arquitectura.
+- `docs/SECURITY_AUDIT.md` — auditoría de seguridad con severidades (N-1, S-1…S-5, N-4).
+- `docs/PERFORMANCE_AUDIT.md` — auditoría de rendimiento (P-1…P-6, sin fugas detectadas).
+- `docs/UX_AUDIT.md` — auditoría de experiencia contra la filosofía.
+
+### Cambiado (documentación)
+- `docs/PROJECT_AUDIT.md` → **v2.0**: sección "Segunda Fase" con correcciones a la v1.0,
+  rúbrica de porcentajes reproducible, hallazgos nuevos (N-1…N-6) y respuestas de
+  preparación (FASE 8). Deuda técnica ampliada a 16 ítems.
+- `docs/PRODUCT_STATUS.md` → **v3.0**: porcentajes recalculados y justificados
+  (Core 75→60, Dashboard 85→95, Coach 45→50, Gamificación 80→75, Sincronización 35→40,
+  Configuración 75→80, Infraestructura 50→45; visión total 38→56).
+- `docs/PRODUCT_BREAKDOWN_STRUCTURE.md` → mapa de estado con Σ/N; código muerto (N-5).
+- `docs/DECISIONS_LOG.md` → **v1.1**: ADR-015 (respaldo incompleto), ADR-016 (conteos
+  divergentes), ADR-017 (código muerto).
+
+### Hallazgos verificados en esta fase (documentados, NO corregidos)
+- **N-1 (Alta):** el respaldo JSON no incluye `entrenoV.plan.v1` → pérdida de rutinas al restaurar.
+- **N-2 (Media):** dos conteos divergentes de sesiones/semana.
+- **N-3 (Media→Crítica):** XSS también en informe PDF y tabla de Progreso.
+- **N-4 (Media):** inyección de fórmulas CSV en la exportación.
+- **N-5 (Baja):** código muerto `#banner`.
+- **N-6 (Media):** sin CSP + 31 `onclick` inline.
+
+---
+
+## [Sin versionar] — Auditoría documental (Primera Fase) · 2026-07-08
 
 ### Añadido (solo documentación, sin cambios de comportamiento)
 - `docs/PROJECT_AUDIT.md` — auditoría integral (producto, técnica, UX, 10 sprints, informe ejecutivo).

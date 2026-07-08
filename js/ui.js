@@ -68,6 +68,7 @@ function render(){
           </div>
           ${lastTimeHint(i, e)}
           ${progressionHint(i, e)}
+          ${coachRow(i, e)}
           ${logRow(i)}
           ${bestRow(i, e)}
           ${oneRmRow(i)}
@@ -397,6 +398,7 @@ function onFieldChange(e){
     updateBestCue(i);
     updateOneRepMax(i);
     updateVolume();
+    updateCoachCues();
   } else if(k === 'note'){
     notes[key] = el.value;
     autoGrow(el);
@@ -450,7 +452,7 @@ function addSet(i){
   const prev = arr[arr.length - 1] || {};
   arr.push({ w: prev.w || 0, reps: prev.reps || 0, rir:'', type:'efectiva' });
   refreshSets(i);
-  updateBestCue(i); updateOneRepMax(i); updateVolume();
+  updateBestCue(i); updateOneRepMax(i); updateVolume(); updateCoachCues();
   Store.save();
 }
 
@@ -460,7 +462,7 @@ function removeSet(i, si){
   if(!Array.isArray(arr)) return;
   arr.splice(si, 1);
   refreshSets(i);
-  updateBestCue(i); updateOneRepMax(i); updateVolume();
+  updateBestCue(i); updateOneRepMax(i); updateVolume(); updateCoachCues();
   Store.save();
 }
 
@@ -1103,6 +1105,12 @@ function renderSettings(){
     <h3>Descanso por defecto</h3>
     <p><small>Al marcar una serie el cronómetro usará este tiempo. «Del plan» respeta el descanso sugerido por cada ejercicio.</small></p>
     <div class="chip-row">${presets.map(s => `<button class="chipbtn ${restDefault === s ? 'on' : ''}" onclick="setRestDefault(${s})">${s === 0 ? 'Del plan' : s + 's'}</button>`).join('')}</div>
+    <h3>Modo Coach 🧠</h3>
+    <p><small>Durante el entreno muestra una pista útil por ejercicio (objetivo a superar, series que faltan). Se basa en tus datos y no interrumpe.</small></p>
+    <div class="seg" role="group" aria-label="Modo Coach">
+      <button class="seg-btn ${coachMode ? 'on' : ''}" onclick="setCoach(true)">Activado</button>
+      <button class="seg-btn ${!coachMode ? 'on' : ''}" onclick="setCoach(false)">Desactivado</button>
+    </div>
     <h3>Metas semanales 🎯</h3>
     <p><small>Ponte objetivos y sigue su progreso en la pestaña Progreso. 0 = sin meta.</small></p>
     <label class="goal-field">Sesiones por semana

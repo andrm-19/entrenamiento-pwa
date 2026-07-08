@@ -26,9 +26,25 @@ todo en tu propio dispositivo (`localStorage`) — sin servidores ni cuentas.
 ├── manifest.json       # Manifiesto PWA
 ├── service-worker.js   # Caché offline-first
 ├── css/styles.css      # Estilos
-├── js/app.js           # Toda la lógica
+├── js/                 # Lógica modular (scripts en orden, mismo scope global):
+│   ├── data.js         #   1. Datos del plan (SCHEDULE) y fechas
+│   ├── store.js        #   2. Persistencia (localStorage + IndexedDB), migraciones, histórico
+│   ├── engine.js       #   3. Dominio: volumen, 1RM, récords, mapas SVG
+│   ├── dashboard.js    #      Motor de analítica (Score, Salud, predicciones)
+│   ├── gamification.js #      Motor de gamificación (XP, nivel, rachas, retos)
+│   ├── coach.js        #      Motor Coach (pistas, patrones, análisis)
+│   ├── ui.js           #   4. Interfaz (render, editor, paneles, eventos, export)
+│   └── boot.js         #   5. Arranque
+├── docs/               # 📚 Documentación oficial (ver docs/README.md)
 └── assets/icon.svg     # Icono
 ```
+
+## Documentación
+
+La **fuente oficial** del proyecto vive en [`docs/`](./docs/README.md): manifiesto,
+principios de ingeniería, auditoría integral (`PROJECT_AUDIT.md`), estado del producto,
+Product Breakdown Structure, registro de decisiones y changelog. Empieza por
+[`docs/README.md`](./docs/README.md).
 
 ## Cómo usarla
 

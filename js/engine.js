@@ -18,6 +18,7 @@ const bests = {};     // { "<dia>-<id>": { w, reps, date } }  récord con fecha
 let current = todayDow, studyMode = false, bannerHidden = false, theme = 'dark', restDefault = 0, editMode = false;
 let goals = { sessions:0, volume:0 };   // metas semanales (spec §81): 0 = sin meta
 let unit = 'kg';                        // unidad de PESO mostrada (spec §22/§108). Siempre se GUARDA en kg.
+let levelSeen = 0;                      // último nivel de gamificación celebrado (NEXT §35). 0 = sin sembrar.
 /* Store.load: movido al arranque (boot.js) */
 
 /* ----------------------------------------------------------------

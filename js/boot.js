@@ -7,6 +7,10 @@
 freezeExerciseIds();
 const DEFAULT_SCHEDULE = JSON.parse(JSON.stringify(SCHEDULE));
 Store.load();
+// Gamificación (NEXT §35): siembra el nivel actual la primera vez, sin celebrarlo,
+// para que solo las subidas FUTURAS disparen la celebración. Store.save() (más
+// abajo en el arranque) lo persiste.
+if(!levelSeen) levelSeen = levelInfo(gamificationStats().xp).level;
 
 /* ----------------------------------------------------------------
    8. PWA: icono, manifest y service worker

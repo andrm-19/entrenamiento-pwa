@@ -408,6 +408,20 @@ footer p{margin:0 0 8px;} footer b{color:var(--text);}
 .tl-detail{font-size:11px; color:var(--muted); font-variant-numeric:tabular-nums;}
 .tl-item.record .tl-detail{color:var(--legs);}
 .tl-date{flex:0 0 auto; font-size:10.5px; color:var(--muted);}
+/* Gamificación (NEXT §32/§33): tarjeta de Nivel + XP + racha */
+.level-card{margin:2px 0 6px; padding:14px; border-radius:16px; background:var(--surface-2); border:1px solid var(--border); box-shadow:var(--shadow-sm);}
+.level-top{display:flex; gap:13px; align-items:center;}
+.level-badge{flex:0 0 auto; width:58px; height:58px; border-radius:16px; display:grid; place-content:center; text-align:center;
+  background:var(--grad-primary, var(--primary)); color:#04121A;}
+.level-badge b{font-size:24px; font-weight:800; line-height:1;}
+.level-badge span{font-size:8.5px; font-weight:700; letter-spacing:.06em; text-transform:uppercase;}
+.level-meta{flex:1; min-width:0;}
+.level-xp{font-size:11.5px; color:var(--muted); margin-bottom:7px;}
+.level-xp b{color:var(--text); font-variant-numeric:tabular-nums; font-size:13px;}
+.level-track{height:8px; border-radius:99px; background:color-mix(in srgb,var(--border) 70%,transparent); overflow:hidden;}
+.level-track i{display:block; height:100%; border-radius:99px; background:var(--grad-primary, var(--primary)); transition:width .5s ease;}
+.level-facts{display:flex; flex-wrap:wrap; gap:8px; margin-top:12px;}
+.level-facts span{font-size:11px; font-weight:600; color:var(--muted); padding:4px 9px; border-radius:999px; background:var(--surface); border:1px solid var(--border);}
 
 /* === Panel de progreso: tarjetas resumen + gráficas === */
 .stat-cards{display:flex; gap:8px; margin:2px 0 10px;}
